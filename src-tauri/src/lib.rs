@@ -1,6 +1,7 @@
 // Module declarations
 pub mod types;
 pub mod error;
+pub mod favorites;
 
 #[cfg(test)]
 mod error_test;
@@ -26,9 +27,13 @@ mod background_test;
 #[cfg(test)]
 mod immutability_test;
 
+#[cfg(test)]
+mod favorites_test;
+
 // Re-export commonly used types
 pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor};
 pub use error::{AppError, AppResult};
+pub use favorites::{FavoriteImage, FavoritesConfig};
 
 use base64::{Engine as _, engine::general_purpose};
 use image::{DynamicImage, GenericImageView, ImageReader};
@@ -756,6 +761,71 @@ async fn rotate_image(
     })
 }
 
+// ============================================================================
+// Favorites Management Commands
+// ============================================================================
+
+/// Get all favorite images
+#[tauri::command]
+async fn get_all_favorites() -> Result<Vec<FavoriteImage>, String> {
+    let config = FavoritesConfig::load()
+        .map_err(|e| e.to_string())?;
+    Ok(config.get_all())
+}
+
+/// Add an image to favorites with tags
+#[tauri::command]
+async fn add_favorite(path: String, tags: Vec<String>) -> Result<(), String> {
+    let mut config = FavoritesConfig::load()
+        .map_err(|e| e.to_string())?;
+    
+    config.add_favorite(path, tags);
+    config.save()
+        .map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+/// Remove an image from favorites
+#[tauri::command]
+async fn remove_favorite(path: String) -> Result<bool, String> {
+    let mut config = FavoritesConfig::load()
+        .map_err(|e| e.to_string())?;
+    
+    let removed = config.remove_favorite(&path);
+    
+    if removed {
+        config.save()
+            .map_err(|e| e.to_string())?;
+    }
+    
+    Ok(removed)
+}
+
+/// Check if an image is favorited
+#[tauri::command]
+async fn is_favorite(path: String) -> Result<bool, String> {
+    let config = FavoritesConfig::load()
+        .map_err(|e| e.to_string())?;
+    Ok(config.is_favorite(&path))
+}
+
+/// Search favorites by tags
+#[tauri::command]
+async fn search_favorites_by_tags(tags: Vec<String>) -> Result<Vec<FavoriteImage>, String> {
+    let config = FavoritesConfig::load()
+        .map_err(|e| e.to_string())?;
+    Ok(config.search_by_tags(&tags))
+}
+
+/// Get all unique tags from favorites
+#[tauri::command]
+async fn get_all_tags() -> Result<Vec<String>, String> {
+    let config = FavoritesConfig::load()
+        .map_err(|e| e.to_string())?;
+    Ok(config.get_all_tags())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -772,7 +842,13 @@ pub fn run() {
             convert_format,
             crop_image,
             set_background,
-            rotate_image
+            rotate_image,
+            get_all_favorites,
+            add_favorite,
+            remove_favorite,
+            is_favorite,
+            search_favorites_by_tags,
+            get_all_tags
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
