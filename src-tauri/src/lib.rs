@@ -826,6 +826,12 @@ async fn get_all_tags() -> Result<Vec<String>, String> {
     Ok(config.get_all_tags())
 }
 
+/// Check if a file exists
+#[tauri::command]
+async fn file_exists(path: String) -> Result<bool, String> {
+    Ok(Path::new(&path).exists())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -848,7 +854,8 @@ pub fn run() {
             remove_favorite,
             is_favorite,
             search_favorites_by_tags,
-            get_all_tags
+            get_all_tags,
+            file_exists
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
