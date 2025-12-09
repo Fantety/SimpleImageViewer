@@ -3,6 +3,7 @@ import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import globals from 'globals';
 
 export default [
   js.configs.recommended,
@@ -18,9 +19,8 @@ export default [
         },
       },
       globals: {
-        window: 'readonly',
-        document: 'readonly',
-        console: 'readonly',
+        ...globals.browser,
+        ...globals.es2021,
       },
     },
     plugins: {
@@ -39,6 +39,14 @@ export default [
     settings: {
       react: {
         version: 'detect',
+      },
+    },
+  },
+  {
+    files: ['vite.config.ts', 'eslint.config.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
       },
     },
   },
