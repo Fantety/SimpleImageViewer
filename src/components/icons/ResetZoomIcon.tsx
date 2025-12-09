@@ -4,17 +4,10 @@ export const ResetZoomIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) =>
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    fill="currentColor"
     {...props}
   >
-    <circle cx="11" cy="11" r="8" />
-    <path d="M21 21l-4.35-4.35" />
-    <path d="M11 8v6" />
-    <path d="M8 11h6" />
-    <path d="M14 8l-3 3 3 3" />
+    <path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6 0 2.97-2.17 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93 0-4.42-3.58-8-8-8zm-6 8c0-1.65.67-3.15 1.76-4.24L6.34 7.34C4.9 8.79 4 10.79 4 13c0 4.08 3.05 7.44 7 7.93v-2.02c-2.83-.48-5-2.94-5-5.91z"/>
+    <circle cx="12" cy="13" r="1"/>
   </svg>
 );
