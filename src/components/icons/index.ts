@@ -9,6 +9,9 @@ import { PrevIcon } from './PrevIcon';
 import { NextIcon } from './NextIcon';
 import { ThemeLightIcon } from './ThemeLightIcon';
 import { ThemeDarkIcon } from './ThemeDarkIcon';
+import { ZoomInIcon } from './ZoomInIcon';
+import { ZoomOutIcon } from './ZoomOutIcon';
+import { ResetZoomIcon } from './ResetZoomIcon';
 
 export type IconName = 
   | 'resize'
@@ -20,7 +23,10 @@ export type IconName =
   | 'prev'
   | 'next'
   | 'theme-light'
-  | 'theme-dark';
+  | 'theme-dark'
+  | 'plus'
+  | 'minus'
+  | 'reset';
 
 export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = {
   'resize': ResizeIcon,
@@ -33,6 +39,9 @@ export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = 
   'next': NextIcon,
   'theme-light': ThemeLightIcon,
   'theme-dark': ThemeDarkIcon,
+  'plus': ZoomInIcon,
+  'minus': ZoomOutIcon,
+  'reset': ResetZoomIcon,
 };
 
 // Export individual icons for direct use if needed
@@ -47,4 +56,7 @@ export {
   NextIcon,
   ThemeLightIcon,
   ThemeDarkIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+  ResetZoomIcon,
 };

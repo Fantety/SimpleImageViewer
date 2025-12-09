@@ -3,6 +3,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useAppState } from '../contexts/AppStateContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
+import { useImageZoom } from '../hooks/useImageZoom';
 import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, saveImage, saveFileDialog } from '../api/tauri';
 import type { ImageFormat, ConversionOptions, RGBColor } from '../types/tauri';
 import { Icon } from './Icon';
@@ -56,6 +57,18 @@ export const ImageViewer: React.FC = () => {
   const [imageScale, setImageScale] = useState<number>(1);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  
+  // Zoom and pan functionality
+  const {
+    zoom,
+    position,
+    isDragging: isImageDragging,
+    handleWheel,
+    handleMouseDown: handleImageMouseDown,
+    resetZoom,
+    zoomIn,
+    zoomOut,
+  } = useImageZoom({ minZoom: 0.5, maxZoom: 5, zoomStep: 0.2 });
   const [showResizeDialog, setShowResizeDialog] = useState<boolean>(false);
   const [showFormatConverterDialog, setShowFormatConverterDialog] = useState<boolean>(false);
   const [showCropDialog, setShowCropDialog] = useState<boolean>(false);
@@ -173,6 +186,9 @@ export const ImageViewer: React.FC = () => {
       setCurrentImage(imageData);
       addToHistory(imageData);
       setLoadingProgress(100);
+      
+      // Reset zoom when loading new image
+      resetZoom();
 
       // Only show notification if requested (to avoid duplicates in drag-and-drop)
       console.log(`[${callId}] showNotification flag:`, showNotification);
@@ -202,6 +218,7 @@ export const ImageViewer: React.FC = () => {
     setDirectoryImages,
     setCurrentImageIndex,
     setError,
+    resetZoom,
   ]);
 
   /**
@@ -862,23 +879,65 @@ export const ImageViewer: React.FC = () => {
           </div>
         )}
 
-        {/* Image display with adaptive scaling (Requirement 1.4) */}
+        {/* Image display with adaptive scaling and zoom (Requirement 1.4) */}
         {state.currentImage && !state.isLoading && !state.error && (
-          <div className="image-container">
+          <div 
+            className="image-container"
+            onWheel={handleWheel}
+            onMouseDown={handleImageMouseDown}
+            style={{
+              cursor: zoom > 1 ? (isImageDragging ? 'grabbing' : 'grab') : 'default',
+              overflow: zoom > 1 ? 'hidden' : 'visible',
+            }}
+          >
             <img
               ref={imageRef}
               src={`data:image/${state.currentImage.format.toLowerCase()};base64,${state.currentImage.data}`}
               alt={state.currentImage.path}
               className="main-image"
               style={{
-                width: `${state.currentImage.width * imageScale}px`,
-                height: `${state.currentImage.height * imageScale}px`,
+                width: `${state.currentImage.width * imageScale * zoom}px`,
+                height: `${state.currentImage.height * imageScale * zoom}px`,
+                transform: `translate(${position.x}px, ${position.y}px)`,
+                transition: isImageDragging ? 'none' : 'transform 0.1s ease-out',
               }}
               onLoad={calculateImageScale}
+              draggable={false}
             />
           </div>
         )}
       </div>
+
+      {/* Zoom controls */}
+      {state.currentImage && !state.isLoading && (
+        <div className="zoom-controls">
+          <button
+            className="zoom-button"
+            onClick={zoomOut}
+            title="缩小 (-)"
+            disabled={zoom <= 0.5}
+          >
+            <Icon name="minus" size={20} />
+          </button>
+          <span className="zoom-level">{Math.round(zoom * 100)}%</span>
+          <button
+            className="zoom-button"
+            onClick={zoomIn}
+            title="放大 (+)"
+            disabled={zoom >= 5}
+          >
+            <Icon name="plus" size={20} />
+          </button>
+          <button
+            className="zoom-button"
+            onClick={resetZoom}
+            title="重置缩放 (1:1)"
+            disabled={zoom === 1}
+          >
+            <Icon name="reset" size={20} />
+          </button>
+        </div>
+      )}
 
       {/* Navigation controls (Requirement 1.5) */}
       {canNavigate && state.currentImage && !state.isLoading && (
