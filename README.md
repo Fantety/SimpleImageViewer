@@ -1,7 +1,270 @@
-# Tauri + React + Typescript
+# Simple Image Viewer
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+<div align="center">
 
-## Recommended IDE Setup
+**轻量级图片查看器 + 基础编辑工具**
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+一个专为 macOS 设计的现代化图片查看和编辑应用，既轻量又强大。
+
+[功能特性](#功能特性) • [安装](#安装) • [使用](#使用) • [技术栈](#技术栈) • [开发](#开发)
+
+</div>
+
+---
+
+## 为什么选择 Simple Image Viewer？
+
+Simple Image Viewer 是一款**轻量级**的图片查看器，同时提供**常用的图片编辑功能**。它专注于日常使用场景，避免了专业图片编辑软件的复杂性和臃肿，让图片查看和简单编辑变得快速而优雅。
+
+### 核心理念
+
+- 🪶 **轻量化**：启动快速，占用资源少
+- 👁️ **查看优先**：优秀的图片浏览体验
+- ✂️ **实用编辑**：提供最常用的编辑功能
+- 🎯 **简单直观**：无需学习曲线，开箱即用
+
+---
+
+## 功能特性
+
+### 📸 图片查看
+
+- **多格式支持**：PNG, JPEG, GIF, BMP, WEBP, SVG, TIFF, ICO, HEIC, AVIF
+- **自适应缩放**：图片自动适配窗口大小
+- **滚轮缩放**：使用鼠标滚轮或触控板放大查看细节（0.5x - 5x）
+- **拖动平移**：放大后可拖动查看图片不同区域
+- **目录浏览**：自动加载同目录下的所有图片
+- **键盘导航**：使用方向键快速切换图片
+- **拖放打开**：直接拖入图片文件即可打开
+- **浅色/深色主题**：支持主题切换
+
+### ✨ 图片编辑
+
+#### 调整尺寸
+- 像素精确调整或百分比缩放
+- 可选保持宽高比
+- 支持保存或保存副本
+
+#### 格式转换
+- 支持 PNG, JPEG, GIF, BMP, WEBP, TIFF, ICO, AVIF 互转
+- JPEG/WEBP/AVIF 可调整质量（1-100）
+- 智能格式建议和说明
+
+#### 裁剪
+- 可视化裁剪框
+- 拖动和调整大小
+- 实时显示裁剪尺寸
+- 支持保存或保存副本
+
+#### 旋转
+- 顺时针/逆时针旋转 90°
+- 一键操作，自动保存
+- 无质量损失
+
+#### 背景设置
+- 为透明图片设置背景色
+- 颜色选择器 + 预设颜色
+- 实时预览
+- 支持保存或保存副本
+
+### 🛡️ 安全特性
+
+- **覆盖确认**：保存操作会弹出确认提示，防止误操作
+- **操作历史**：支持撤销/重做（开发中）
+- **数据不可变**：所有编辑操作不会修改原始数据，直到明确保存
+
+### ⚡ 性能优化
+
+- GPU 加速渲染
+- 大图片优化加载
+- 响应时间 < 100ms
+- 流畅的动画和过渡
+
+---
+
+## 安装
+
+### 系统要求
+
+- macOS 10.15 或更高版本
+- 约 50MB 磁盘空间
+
+### 下载安装
+
+1. 前往 [Releases](https://github.com/yourusername/simpleimageviewer/releases) 页面
+2. 下载最新版本的 `.dmg` 文件
+3. 打开 `.dmg` 文件，将应用拖入 Applications 文件夹
+4. 首次打开时，右键点击应用选择"打开"（macOS 安全设置）
+
+---
+
+## 使用
+
+### 打开图片
+
+- **方式 1**：点击"打开图片"按钮或按 `Cmd+O`
+- **方式 2**：直接拖放图片文件到窗口
+- **方式 3**：右键图片选择"打开方式" → Simple Image Viewer
+
+### 查看图片
+
+- **缩放**：鼠标滚轮或触控板双指缩放
+- **平移**：放大后按住鼠标左键拖动
+- **导航**：使用 `←` `→` 方向键切换图片
+- **重置**：点击缩放控制中的重置按钮
+
+### 编辑图片
+
+1. 点击工具栏中的编辑按钮（调整尺寸、裁剪、格式转换等）
+2. 在对话框中进行编辑
+3. 选择"保存"（覆盖原图）或"保存副本"（创建新文件）
+4. 旋转功能会直接保存，无需额外确认
+
+### 键盘快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| `Cmd+O` | 打开图片 |
+| `←` | 上一张图片 |
+| `→` | 下一张图片 |
+| 滚轮 | 缩放图片 |
+
+---
+
+## 技术栈
+
+### 前端
+- **React 19** - UI 框架
+- **TypeScript** - 类型安全
+- **Vite** - 构建工具
+- **CSS Variables** - 主题系统
+
+### 后端
+- **Tauri 2** - 桌面应用框架
+- **Rust** - 高性能图片处理
+- **image crate** - 图片编解码
+
+### 特性
+- 完整的 TypeScript 类型定义
+- 错误边界和日志系统
+- 响应式设计
+- 性能监控和优化
+
+---
+
+## 开发
+
+### 环境准备
+
+1. 安装 [Node.js](https://nodejs.org/) (v18+)
+2. 安装 [Rust](https://www.rust-lang.org/tools/install)
+3. 安装依赖：
+
+```bash
+npm install
+# 或
+yarn install
+```
+
+### 开发模式
+
+```bash
+npm run tauri dev
+```
+
+### 构建应用
+
+```bash
+npm run tauri build
+```
+
+构建产物位于 `src-tauri/target/release/bundle/`
+
+### 代码检查
+
+```bash
+npm run lint
+npm run lint:fix
+```
+
+### 测试
+
+```bash
+# Rust 测试
+cd src-tauri
+cargo test
+
+# TypeScript 测试
+npm test
+```
+
+---
+
+## 项目结构
+
+```
+simpleimageviewer/
+├── src/                      # 前端源码
+│   ├── components/          # React 组件
+│   ├── contexts/            # React Context
+│   ├── hooks/               # 自定义 Hooks
+│   ├── api/                 # Tauri API 封装
+│   ├── styles/              # 全局样式
+│   └── types/               # TypeScript 类型
+├── src-tauri/               # Rust 后端
+│   ├── src/
+│   │   ├── lib.rs          # 主要逻辑
+│   │   ├── types.rs        # 类型定义
+│   │   └── error.rs        # 错误处理
+│   └── Cargo.toml          # Rust 依赖
+└── package.json            # Node 依赖
+```
+
+---
+
+## 路线图
+
+- [x] 基础图片查看
+- [x] 缩放和平移
+- [x] 图片编辑（调整尺寸、裁剪、格式转换、旋转、背景）
+- [x] 保存确认提示
+- [ ] 操作历史（撤销/重做）
+- [ ] 批量处理
+- [ ] 更多图片效果（亮度、对比度、饱和度等）
+- [ ] 插件系统
+
+---
+
+## 贡献
+
+欢迎贡献代码、报告问题或提出建议！
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+---
+
+## 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+
+---
+
+## 致谢
+
+- [Tauri](https://tauri.app/) - 优秀的桌面应用框架
+- [image-rs](https://github.com/image-rs/image) - 强大的 Rust 图片处理库
+- [React](https://react.dev/) - 现代化的 UI 框架
+
+---
+
+<div align="center">
+
+**如果这个项目对你有帮助，请给个 ⭐️**
+
+Made with ❤️ for macOS users
+
+</div>
