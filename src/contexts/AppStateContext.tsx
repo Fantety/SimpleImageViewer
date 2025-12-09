@@ -34,6 +34,7 @@ const initialState: ApplicationState = {
 interface AppStateContextValue {
   state: ApplicationState;
   setCurrentImage: (image: ImageData | null) => void;
+  updateCurrentImagePath: (newPath: string) => void;
   addToHistory: (image: ImageData) => void;
   navigateHistory: (direction: 'undo' | 'redo') => void;
   setDirectoryImages: (images: string[]) => void;
@@ -62,6 +63,28 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ...prev,
       currentImage: image ? deepCopyImageData(image) : null,
     }));
+  }, []);
+
+  /**
+   * Update the current image path
+   * Used when saving to a new location
+   */
+  const updateCurrentImagePath = useCallback((newPath: string) => {
+    setState(prev => {
+      if (!prev.currentImage) {
+        return prev;
+      }
+      
+      const updatedImage = {
+        ...prev.currentImage,
+        path: newPath,
+      };
+      
+      return {
+        ...prev,
+        currentImage: updatedImage,
+      };
+    });
   }, []);
 
   /**
@@ -206,6 +229,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const value: AppStateContextValue = {
     state,
     setCurrentImage,
+    updateCurrentImagePath,
     addToHistory,
     navigateHistory,
     setDirectoryImages,

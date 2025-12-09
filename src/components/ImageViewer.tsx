@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppState } from '../contexts/AppStateContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground } from '../api/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, saveImage, saveFileDialog } from '../api/tauri';
 import type { ImageFormat, ConversionOptions, RGBColor } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
@@ -28,6 +29,7 @@ export const ImageViewer: React.FC = () => {
   const {
     state,
     setCurrentImage,
+    updateCurrentImagePath,
     addToHistory,
     setDirectoryImages,
     setCurrentImageIndex,
@@ -35,6 +37,8 @@ export const ImageViewer: React.FC = () => {
     setError,
     clearError,
   } = useAppState();
+
+  const { showSuccess, showError } = useNotification();
 
   const {
     goToPrevious,
@@ -370,10 +374,66 @@ export const ImageViewer: React.FC = () => {
     setShowBackgroundSetterDialog(false);
   }, []);
 
-  const handleSave = useCallback(() => {
-    console.log('Save operation - to be implemented');
-    // TODO: Implement in task 15
-  }, []);
+  /**
+   * Handle save operation
+   * Opens save dialog and saves the current image (Requirements 6.1, 6.2, 6.3, 6.4, 6.5)
+   */
+  const handleSave = useCallback(async () => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+
+      // Generate default filename from current path
+      const currentPath = state.currentImage.path;
+      const fileName = currentPath.split('/').pop() || 'image';
+      
+      // Open save file dialog
+      const savePath = await saveFileDialog(fileName);
+      
+      if (!savePath) {
+        // User cancelled the dialog
+        setLoading(false);
+        return;
+      }
+
+      // Save the image
+      await saveImage(state.currentImage, savePath);
+
+      // Update the current image path to the new location (Requirement 6.5)
+      updateCurrentImagePath(savePath);
+
+      // Show success notification (Requirement 6.5)
+      showSuccess('保存成功', `图片已保存到 ${savePath.split('/').pop()}`);
+
+    } catch (err) {
+      // Handle save errors (Requirement 6.4)
+      const errorMessage = err instanceof Error ? err.message : '保存图片失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      
+      // Log the error
+      logError('Failed to save image', error, 'ImageViewer', { operation: 'save' });
+      
+      // Show error notification (Requirement 6.4)
+      showError('保存失败', errorMessage);
+      
+      // Also set error state for consistency
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    state.currentImage,
+    setLoading,
+    clearError,
+    updateCurrentImagePath,
+    setError,
+    showSuccess,
+    showError,
+  ]);
 
   /**
    * Handle keyboard navigation

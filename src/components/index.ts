@@ -8,4 +8,6 @@ export { FormatConverterDialog } from './FormatConverterDialog';
 export { CropDialog } from './CropDialog';
 export { BackgroundSetterDialog } from './BackgroundSetterDialog';
 export { ErrorBoundary } from './ErrorBoundary';
+export { Notification, NotificationContainer } from './Notification';
+export type { NotificationProps, NotificationData, NotificationType } from './Notification';
 export * from './icons';
