@@ -2,6 +2,7 @@
 pub mod types;
 pub mod error;
 pub mod favorites;
+pub mod ocr;
 
 #[cfg(test)]
 mod error_test;
@@ -832,11 +833,47 @@ async fn file_exists(path: String) -> Result<bool, String> {
     Ok(Path::new(&path).exists())
 }
 
+/// Perform OCR on an image
+#[tauri::command]
+async fn ocr_image(image_data: ImageData) -> Result<String, String> {
+    // Decode Base64 data
+    let decoded_data = general_purpose::STANDARD
+        .decode(&image_data.data)
+        .map_err(|e| AppError::InvalidImageData(format!("Failed to decode Base64: {}", e)))?;
+    
+    // Load image from decoded data
+    let img = image::load_from_memory(&decoded_data)
+        .map_err(AppError::ImageError)?;
+    
+    // Save to temporary file for OCR
+    let temp_dir = std::env::temp_dir();
+    let temp_path = temp_dir.join(format!("ocr_temp_{}.png", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis()));
+    
+    img.save(&temp_path)
+        .map_err(|e| AppError::IoError(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to save temp image: {}", e)
+        )))?;
+    
+    // Perform OCR using platform-specific implementation
+    let text = ocr::perform_ocr(&temp_path)
+        .map_err(|e| e.to_string())?;
+    
+    // Clean up temp file
+    let _ = std::fs::remove_file(&temp_path);
+    
+    Ok(text.trim().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             greet, 
             load_image,
@@ -855,7 +892,8 @@ pub fn run() {
             is_favorite,
             search_favorites_by_tags,
             get_all_tags,
-            file_exists
+            file_exists,
+            ocr_image
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -335,3 +335,14 @@ export async function getAllTags(): Promise<string[]> {
 export async function fileExists(path: string): Promise<boolean> {
   return await invoke<boolean>('file_exists', { path });
 }
+
+/**
+ * Perform OCR (Optical Character Recognition) on an image
+ * 
+ * @param imageData - ImageData object containing the image to process
+ * @returns Promise resolving to recognized text
+ * @throws Error if OCR fails
+ */
+export async function ocrImage(imageData: ImageData): Promise<string> {
+  return await invoke<string>('ocr_image', { imageData });
+}

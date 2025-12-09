@@ -29,6 +29,7 @@ export interface ToolbarProps {
   onRotateRight: () => void;
   onToggleFavorite: () => void;
   onOpenFavorites: () => void;
+  onOcr: () => void;
   disabled: boolean;
   hasAlpha?: boolean; // For conditional background button enabling
   isFavorite?: boolean; // Whether current image is favorited
@@ -43,6 +44,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onRotateRight,
   onToggleFavorite,
   onOpenFavorites,
+  onOcr,
   disabled,
   hasAlpha = false,
   isFavorite = false,
@@ -124,6 +126,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         >
           <Icon name="rotate-right" size={20} />
           <span className="toolbar-button-label">顺时针</span>
+        </button>
+
+        <div className="toolbar-divider" />
+
+        <button
+          className="toolbar-button"
+          onClick={onOcr}
+          disabled={disabled}
+          title="文字识别 - 识别图片中的文字"
+          aria-label="文字识别"
+        >
+          <Icon name="ocr" size={20} />
+          <span className="toolbar-button-label">文字识别</span>
         </button>
       </div>
 

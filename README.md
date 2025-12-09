@@ -68,6 +68,12 @@ Simple Image Viewer 是一款**轻量级**的图片查看器，同时提供**常
 - 实时预览
 - 支持保存或保存副本
 
+#### 文字识别 (OCR)
+- 从图片中提取文字
+- 支持中英文识别
+- 一键复制识别结果
+- 纯 Rust 实现，无需外部依赖
+
 #### 收藏管理
 - 收藏常用图片
 - 为图片添加标签
@@ -184,6 +190,15 @@ npm install
 # 或
 yarn install
 ```
+
+4. 下载 OCR 模型文件：
+
+```bash
+cd src-tauri
+./download-models.sh
+```
+
+这会下载约 12MB 的 OCR 模型文件到 `src-tauri/models/` 目录。
 
 ### 开发模式
 
