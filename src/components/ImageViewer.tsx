@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useAppState } from '../contexts/AppStateContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
@@ -13,6 +14,11 @@ import { BackgroundSetterDialog } from './BackgroundSetterDialog';
 import { ErrorBoundary } from './ErrorBoundary';
 import { logError } from '../utils/errorLogger';
 import './ImageViewer.css';
+
+// Module-level flag to prevent double registration of drag-drop listener
+// This is necessary because React Strict Mode may mount components twice in development
+let dragDropListenerRegistered = false;
+let dragDropUnlistenFn: (() => void) | undefined = undefined;
 
 /**
  * ImageViewer Component
@@ -57,9 +63,20 @@ export const ImageViewer: React.FC = () => {
   const [showBackgroundSetterDialog, setShowBackgroundSetterDialog] = useState<boolean>(false);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [operationName, setOperationName] = useState<string>('');
+  const [isDragging, setIsDragging] = useState<boolean>(false);
   
   // Performance optimization: debounce resize calculations
   const resizeTimeoutRef = useRef<number | null>(null);
+  
+  // Store notification functions in refs to avoid recreating loadImageFromPath
+  const showSuccessRef = useRef(showSuccess);
+  const showErrorRef = useRef(showError);
+  
+  // Update refs when functions change
+  useEffect(() => {
+    showSuccessRef.current = showSuccess;
+    showErrorRef.current = showError;
+  }, [showSuccess, showError]);
 
   /**
    * Calculate adaptive scaling for the image to fit within the container
@@ -123,29 +140,20 @@ export const ImageViewer: React.FC = () => {
   }, [calculateImageScale]);
 
   /**
-   * Handle opening a file dialog and loading the selected image
-   * (Requirement 1.1)
-   * 
-   * Performance optimization: Shows progress indicator for better UX
+   * Load an image from a file path
+   * Common function used by both file dialog and drag-and-drop
    */
-  const handleOpenFile = useCallback(async () => {
+  const loadImageFromPath = useCallback(async (filePath: string, showNotification: boolean = true) => {
+    const callId = Math.random().toString(36).substring(7);
+    console.log(`[${callId}] loadImageFromPath called with:`, { filePath, showNotification });
+    
     try {
       setLoading(true);
       clearError();
       setLoadingProgress(0);
       setOperationName('打开图片');
 
-      const filePath = await openFileDialog();
-      
-      if (!filePath) {
-        // User cancelled the dialog
-        setLoading(false);
-        setLoadingProgress(0);
-        setOperationName('');
-        return;
-      }
-
-      // Simulate progress for better UX (actual loading is fast but feels better with feedback)
+      // Simulate progress for better UX
       setLoadingProgress(30);
 
       // Load the selected image
@@ -167,12 +175,21 @@ export const ImageViewer: React.FC = () => {
       addToHistory(imageData);
       setLoadingProgress(100);
 
+      // Only show notification if requested (to avoid duplicates in drag-and-drop)
+      console.log(`[${callId}] showNotification flag:`, showNotification);
+      if (showNotification) {
+        console.log(`[${callId}] Calling showSuccess from loadImageFromPath`);
+        showSuccessRef.current('加载成功', `已打开 ${filePath.split('/').pop()}`);
+      } else {
+        console.log(`[${callId}] Skipping notification (showNotification=false)`);
+      }
     } catch (err) {
       // Handle loading errors (Requirement 1.3)
       const errorMessage = err instanceof Error ? err.message : '加载图片失败';
       const error = err instanceof Error ? err : new Error(errorMessage);
-      logError('Failed to load image', error, 'ImageViewer', { operation: 'openFile' });
+      logError('Failed to load image', error, 'ImageViewer', { operation: 'loadImage', filePath });
       setError(errorMessage);
+      showErrorRef.current('加载失败', errorMessage);
     } finally {
       setLoading(false);
       setLoadingProgress(0);
@@ -187,6 +204,23 @@ export const ImageViewer: React.FC = () => {
     setCurrentImageIndex,
     setError,
   ]);
+
+  /**
+   * Handle opening a file dialog and loading the selected image
+   * (Requirement 1.1)
+   * 
+   * Performance optimization: Shows progress indicator for better UX
+   */
+  const handleOpenFile = useCallback(async () => {
+    const filePath = await openFileDialog();
+    
+    if (!filePath) {
+      // User cancelled the dialog
+      return;
+    }
+
+    await loadImageFromPath(filePath);
+  }, [loadImageFromPath]);
 
   /**
    * Handle resize operation
@@ -568,8 +602,153 @@ export const ImageViewer: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [canNavigate, goToPrevious, goToNext, handleOpenFile, handleSave, state.currentImage]);
 
+  /**
+   * Handle drag and drop for image files using Tauri webview events
+   * Allows users to drag image files into the application window
+   * 
+   * Uses module-level flag to prevent double registration in React Strict Mode
+   */
+  useEffect(() => {
+    // Prevent double registration using module-level flag
+    if (dragDropListenerRegistered) {
+      console.log('Drag-drop listener already registered (module-level check), skipping...');
+      return;
+    }
+    
+    console.log('Registering drag-drop listener...');
+    dragDropListenerRegistered = true;
+    
+    let lastProcessedPath: string | null = null;
+    let lastProcessedTime = 0;
+    let isProcessingDrop = false;
+    let dropEventCounter = 0;
+
+    // Set up Tauri file drop event listeners
+    const setupListeners = async () => {
+      try {
+        const listenerId = Math.random().toString(36).substring(7);
+        console.log(`[Listener ${listenerId}] Setting up drag and drop listeners...`);
+        const webview = getCurrentWebviewWindow();
+        
+        // Single event listener for all drag/drop events
+        const unlisten = await webview.onDragDropEvent((event) => {
+          dropEventCounter++;
+          console.log(`[Listener ${listenerId}] Drag event #${dropEventCounter}:`, event);
+          
+          if (event.payload.type === 'over') {
+            console.log(`[Listener ${listenerId}] Drag over detected`);
+            setIsDragging(true);
+          } else if (event.payload.type === 'drop') {
+            console.log(`[Listener ${listenerId}] File dropped:`, event.payload.paths);
+            setIsDragging(false);
+            
+            // Prevent concurrent drop processing
+            if (isProcessingDrop) {
+              console.log('Already processing a drop, ignoring');
+              return;
+            }
+            
+            const paths = event.payload.paths;
+            if (!paths || paths.length === 0) {
+              console.log('No paths in drop event');
+              return;
+            }
+
+            // Get the first file path
+            const filePath = paths[0];
+            const now = Date.now();
+            
+            // Prevent duplicate processing of the same file within 1 second
+            if (filePath === lastProcessedPath && now - lastProcessedTime < 1000) {
+              console.log('Duplicate drop event detected, ignoring:', filePath);
+              return;
+            }
+            
+            lastProcessedPath = filePath;
+            lastProcessedTime = now;
+            isProcessingDrop = true;
+            
+            console.log(`[Listener ${listenerId}] Processing file:`, filePath);
+            
+            // Check if it's an image file
+            const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg', '.tiff', '.tif', '.ico', '.heic', '.avif'];
+            const fileName = filePath.toLowerCase();
+            const isImage = imageExtensions.some(ext => fileName.endsWith(ext));
+
+            if (!isImage) {
+              console.log('File is not an image:', fileName);
+              showErrorRef.current('不支持的文件', '请拖入图片文件（PNG、JPEG、GIF、BMP、WEBP、SVG、TIFF、ICO、HEIC、AVIF）');
+              isProcessingDrop = false;
+              return;
+            }
+
+            console.log('Loading image from path:', filePath);
+            
+            // Load the image without showing notification (to avoid duplicates)
+            loadImageFromPath(filePath, false)
+              .then(() => {
+                console.log('Image loaded successfully');
+                // Show success notification here instead
+                const fileName = filePath.split('/').pop();
+                console.log('About to show notification for:', fileName);
+                showSuccessRef.current('加载成功', `已打开 ${fileName}`);
+                console.log('Notification shown');
+              })
+              .catch((error) => {
+                console.error('Error loading image:', error);
+              })
+              .finally(() => {
+                // Reset processing flag after a short delay
+                setTimeout(() => {
+                  isProcessingDrop = false;
+                  console.log('Drop processing flag reset');
+                }, 500);
+              });
+          } else if (event.payload.type === 'leave') {
+            console.log('Drag leave');
+            setIsDragging(false);
+          }
+        });
+        
+        
+        // Store unlisten function at module level
+        dragDropUnlistenFn = unlisten;
+        
+        console.log('Drag and drop listeners set up successfully');
+      } catch (error) {
+        console.error('Error setting up drag and drop listeners:', error);
+        logError('Failed to setup drag and drop', error instanceof Error ? error : new Error(String(error)), 'ImageViewer');
+        dragDropListenerRegistered = false; // Allow retry on error
+      }
+    };
+
+    setupListeners();
+
+    // Cleanup listener on unmount
+    // NOTE: We do NOT reset dragDropListenerRegistered here to prevent
+    // React StrictMode from creating duplicate listeners during development
+    return () => {
+      console.log('Component unmounting, cleaning up drag and drop listener');
+      if (dragDropUnlistenFn) {
+        dragDropUnlistenFn();
+        dragDropUnlistenFn = undefined;
+      }
+      // Do NOT reset dragDropListenerRegistered here - it stays true to prevent re-registration
+    };
+  }, []); // Empty dependency array - only set up once on mount
+
   return (
     <div className="image-viewer">
+      {/* Drag and drop overlay */}
+      {isDragging && (
+        <div className="drag-overlay">
+          <div className="drag-overlay-content">
+            <Icon name="open" size={64} color="var(--color-accent)" />
+            <p className="drag-overlay-text">释放以打开图片</p>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar with edit operations and theme toggle */}
       <ErrorBoundary
         isolationName="Toolbar"
@@ -645,7 +824,7 @@ export const ImageViewer: React.FC = () => {
         {!state.currentImage && !state.isLoading && !state.error && (
           <div className="empty-state">
             <Icon name="open" size={64} color="var(--color-text-secondary)" />
-            <p>点击&ldquo;打开图片&rdquo;或按 Ctrl+O 开始</p>
+            <p>点击&ldquo;打开图片&rdquo;、按 Ctrl+O 或拖入图片文件开始</p>
           </div>
         )}
 

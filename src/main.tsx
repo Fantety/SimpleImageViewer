@@ -9,7 +9,8 @@ import "./styles/themes.css";
 import "./styles/variables.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
+  // Temporarily disabled StrictMode to prevent duplicate drag-drop listeners
+  // <React.StrictMode>
     <ThemeProvider>
       <NotificationProvider>
         <AppStateProvider>
@@ -17,5 +18,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         </AppStateProvider>
       </NotificationProvider>
     </ThemeProvider>
-  </React.StrictMode>,
+  // </React.StrictMode>,
 );
