@@ -9,10 +9,12 @@ import './Toolbar.css';
  * Provides access to all editing functions and theme switching.
  * 
  * Features:
- * - Edit operation buttons (resize, convert, crop, background, save)
+ * - Edit operation buttons (resize, convert, crop, background)
  * - Theme toggle button
  * - Tooltips for all buttons
  * - Disabled state logic based on image availability
+ * 
+ * Note: Save functionality is integrated into each edit dialog (save/save as copy)
  * 
  * Requirements: 8.1, 8.2
  */
@@ -22,7 +24,6 @@ export interface ToolbarProps {
   onConvert: () => void;
   onCrop: () => void;
   onSetBackground: () => void;
-  onSave: () => void;
   disabled: boolean;
   hasAlpha?: boolean; // For conditional background button enabling
 }
@@ -32,7 +33,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onConvert,
   onCrop,
   onSetBackground,
-  onSave,
   disabled,
   hasAlpha = false,
 }) => {
@@ -89,19 +89,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         >
           <Icon name="background" size={20} />
           <span className="toolbar-button-label">背景设置</span>
-        </button>
-
-        <div className="toolbar-divider" />
-
-        <button
-          className="toolbar-button toolbar-button-primary"
-          onClick={onSave}
-          disabled={disabled}
-          title="保存 - 保存编辑后的图片 (Ctrl+S)"
-          aria-label="保存"
-        >
-          <Icon name="save" size={20} />
-          <span className="toolbar-button-label">保存</span>
         </button>
       </div>
 

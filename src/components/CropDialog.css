@@ -103,38 +103,13 @@
   pointer-events: none;
 }
 
-.crop-overlay-dark {
-  position: absolute;
-  background-color: rgba(0, 0, 0, 0.5);
-  pointer-events: none;
-}
-
-.crop-overlay-top {
-  top: 0;
-  left: 0;
-  right: 0;
-}
-
-.crop-overlay-bottom {
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.crop-overlay-left {
-  left: 0;
-}
-
-.crop-overlay-right {
-  right: 0;
-}
-
 .crop-selection {
   position: absolute;
   border: 2px solid var(--color-accent);
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
   cursor: move;
   pointer-events: auto;
+  box-sizing: border-box;
 }
 
 .crop-handle {

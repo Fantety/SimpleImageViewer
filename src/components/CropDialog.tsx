@@ -36,14 +36,14 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
   const handleConfirm = async (saveAsCopy: boolean) => {
     setIsProcessing(true);
     try {
-      // Convert from display coordinates to actual image coordinates
-      const scale = getImageScale();
-      const actualX = Math.round(cropRegion.x / scale);
-      const actualY = Math.round(cropRegion.y / scale);
-      const actualWidth = Math.round(cropRegion.width / scale);
-      const actualHeight = Math.round(cropRegion.height / scale);
-      
-      await onConfirm(actualX, actualY, actualWidth, actualHeight, saveAsCopy);
+      // cropRegion is already in actual image coordinates
+      await onConfirm(
+        Math.round(cropRegion.x),
+        Math.round(cropRegion.y),
+        Math.round(cropRegion.width),
+        Math.round(cropRegion.height),
+        saveAsCopy
+      );
     } catch (error) {
       console.error('Crop failed:', error);
       alert(`Crop failed: ${error}`);
@@ -52,22 +52,35 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
     }
   };
 
-  const getImageScale = (): number => {
-    if (!imageRef.current) return 1;
-    const displayWidth = imageRef.current.clientWidth;
-    return displayWidth / imageData.width;
+  // Get the image's position and scale relative to the container
+  const getImageBounds = () => {
+    if (!imageRef.current || !containerRef.current) {
+      return { offsetX: 0, offsetY: 0, scale: 1, displayWidth: 0, displayHeight: 0 };
+    }
+    
+    const img = imageRef.current;
+    const container = containerRef.current;
+    
+    const displayWidth = img.clientWidth;
+    const displayHeight = img.clientHeight;
+    const scale = displayWidth / imageData.width;
+    
+    // Get image position relative to container
+    const imgRect = img.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    
+    const offsetX = imgRect.left - containerRect.left;
+    const offsetY = imgRect.top - containerRect.top;
+    
+    return { offsetX, offsetY, scale, displayWidth, displayHeight };
   };
 
   const constrainRegion = (region: CropRegion): CropRegion => {
-    const scale = getImageScale();
-    const maxWidth = imageData.width * scale;
-    const maxHeight = imageData.height * scale;
-
     return {
-      x: Math.max(0, Math.min(region.x, maxWidth - 1)),
-      y: Math.max(0, Math.min(region.y, maxHeight - 1)),
-      width: Math.max(1, Math.min(region.width, maxWidth - region.x)),
-      height: Math.max(1, Math.min(region.height, maxHeight - region.y)),
+      x: Math.max(0, Math.min(region.x, imageData.width - 1)),
+      y: Math.max(0, Math.min(region.y, imageData.height - 1)),
+      width: Math.max(1, Math.min(region.width, imageData.width - region.x)),
+      height: Math.max(1, Math.min(region.height, imageData.height - region.y)),
     };
   };
 
@@ -84,8 +97,11 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging || !dragHandle) return;
 
-      const dx = e.clientX - dragStart.x;
-      const dy = e.clientY - dragStart.y;
+      const { scale } = getImageBounds();
+      
+      // Convert mouse movement from screen pixels to image pixels
+      const dx = (e.clientX - dragStart.x) / scale;
+      const dy = (e.clientY - dragStart.y) / scale;
 
       let newRegion = { ...initialRegion };
 
@@ -137,12 +153,10 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragHandle, dragStart, initialRegion]);
+  }, [isDragging, dragHandle, dragStart, initialRegion, imageData.width, imageData.height]);
 
-  // Calculate actual dimensions in image pixels
-  const scale = getImageScale();
-  const actualWidth = Math.round(cropRegion.width / scale);
-  const actualHeight = Math.round(cropRegion.height / scale);
+  // Get display bounds for rendering
+  const { offsetX, offsetY, scale } = getImageBounds();
 
   return (
     <div className="crop-dialog-overlay">
@@ -171,44 +185,14 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
             
             {/* Crop overlay */}
             <div className="crop-overlay">
-              {/* Darkened areas outside crop region */}
-              <div
-                className="crop-overlay-dark crop-overlay-top"
-                style={{ height: `${cropRegion.y}px` }}
-              />
-              <div
-                className="crop-overlay-dark crop-overlay-bottom"
-                style={{
-                  top: `${cropRegion.y + cropRegion.height}px`,
-                  height: `calc(100% - ${cropRegion.y + cropRegion.height}px)`,
-                }}
-              />
-              <div
-                className="crop-overlay-dark crop-overlay-left"
-                style={{
-                  top: `${cropRegion.y}px`,
-                  height: `${cropRegion.height}px`,
-                  width: `${cropRegion.x}px`,
-                }}
-              />
-              <div
-                className="crop-overlay-dark crop-overlay-right"
-                style={{
-                  top: `${cropRegion.y}px`,
-                  left: `${cropRegion.x + cropRegion.width}px`,
-                  height: `${cropRegion.height}px`,
-                  width: `calc(100% - ${cropRegion.x + cropRegion.width}px)`,
-                }}
-              />
-
-              {/* Crop selection box */}
+              {/* Crop selection box - positioned relative to image */}
               <div
                 className="crop-selection"
                 style={{
-                  left: `${cropRegion.x}px`,
-                  top: `${cropRegion.y}px`,
-                  width: `${cropRegion.width}px`,
-                  height: `${cropRegion.height}px`,
+                  left: `${offsetX + cropRegion.x * scale}px`,
+                  top: `${offsetY + cropRegion.y * scale}px`,
+                  width: `${cropRegion.width * scale}px`,
+                  height: `${cropRegion.height * scale}px`,
                 }}
                 onMouseDown={(e) => handleMouseDown(e, 'move')}
               >
@@ -250,7 +234,7 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
 
                 {/* Dimension display */}
                 <div className="crop-dimensions">
-                  {actualWidth} × {actualHeight}
+                  {Math.round(cropRegion.width)} × {Math.round(cropRegion.height)}
                 </div>
               </div>
             </div>
@@ -262,7 +246,7 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
               Use the handles to resize the selection.
             </p>
             <p className="crop-size-info">
-              Selection: {actualWidth} × {actualHeight} pixels
+              Selection: {Math.round(cropRegion.width)} × {Math.round(cropRegion.height)} pixels
             </p>
           </div>
         </div>

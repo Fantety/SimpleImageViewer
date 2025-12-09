@@ -35,7 +35,6 @@ export const ImageViewer: React.FC = () => {
   const {
     state,
     setCurrentImage,
-    updateCurrentImagePath,
     addToHistory,
     setDirectoryImages,
     setCurrentImageIndex,
@@ -605,87 +604,13 @@ export const ImageViewer: React.FC = () => {
     setShowBackgroundSetterDialog(false);
   }, []);
 
-  /**
-   * Handle save operation
-   * Opens save dialog and saves the current image (Requirements 6.1, 6.2, 6.3, 6.4, 6.5)
-   */
-  const handleSave = useCallback(async () => {
-    if (!state.currentImage) {
-      return;
-    }
 
-    try {
-      setLoading(true);
-      clearError();
-      setLoadingProgress(0);
-      setOperationName('保存图片');
-
-      // Generate default filename from current path
-      const currentPath = state.currentImage.path;
-      const fileName = currentPath.split('/').pop() || 'image';
-      
-      setLoadingProgress(20);
-
-      // Open save file dialog
-      const savePath = await saveFileDialog(fileName);
-      
-      if (!savePath) {
-        // User cancelled the dialog
-        setLoading(false);
-        setLoadingProgress(0);
-        setOperationName('');
-        return;
-      }
-
-      setLoadingProgress(50);
-
-      // Save the image
-      await saveImage(state.currentImage, savePath);
-
-      setLoadingProgress(90);
-
-      // Update the current image path to the new location (Requirement 6.5)
-      updateCurrentImagePath(savePath);
-
-      setLoadingProgress(100);
-
-      // Show success notification (Requirement 6.5)
-      showSuccess('保存成功', `图片已保存到 ${savePath.split('/').pop()}`);
-
-    } catch (err) {
-      // Handle save errors (Requirement 6.4)
-      const errorMessage = err instanceof Error ? err.message : '保存图片失败';
-      const error = err instanceof Error ? err : new Error(errorMessage);
-      
-      // Log the error
-      logError('Failed to save image', error, 'ImageViewer', { operation: 'save' });
-      
-      // Show error notification (Requirement 6.4)
-      showError('保存失败', errorMessage);
-      
-      // Also set error state for consistency
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-      setLoadingProgress(0);
-      setOperationName('');
-    }
-  }, [
-    state.currentImage,
-    setLoading,
-    clearError,
-    updateCurrentImagePath,
-    setError,
-    showSuccess,
-    showError,
-  ]);
 
   /**
    * Handle keyboard shortcuts (Requirement 8.5)
    * 
    * Supported shortcuts:
    * - Ctrl/Cmd + O: Open file dialog
-   * - Ctrl/Cmd + S: Save current image
    * - Arrow Left (←): Navigate to previous image
    * - Arrow Right (→): Navigate to next image
    * 
@@ -705,17 +630,12 @@ export const ImageViewer: React.FC = () => {
       else if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
         e.preventDefault();
         handleOpenFile();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (state.currentImage) {
-          handleSave();
-        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canNavigate, goToPrevious, goToNext, handleOpenFile, handleSave, state.currentImage]);
+  }, [canNavigate, goToPrevious, goToNext, handleOpenFile]);
 
   /**
    * Handle drag and drop for image files using Tauri webview events
@@ -874,7 +794,6 @@ export const ImageViewer: React.FC = () => {
           onConvert={handleConvert}
           onCrop={handleCrop}
           onSetBackground={handleSetBackground}
-          onSave={handleSave}
           disabled={!state.currentImage || state.isLoading}
           hasAlpha={state.currentImage?.hasAlpha || false}
         />
