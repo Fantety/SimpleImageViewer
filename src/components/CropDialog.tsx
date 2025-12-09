@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ImageData } from '../types/tauri';
+import { ConfirmDialog } from './ConfirmDialog';
 import './CropDialog.css';
 
 interface CropDialogProps {
@@ -29,11 +30,24 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
   const [dragHandle, setDragHandle] = useState<DragHandle>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [initialRegion, setInitialRegion] = useState<CropRegion>(cropRegion);
+  const [showConfirm, setShowConfirm] = useState<boolean>(false);
+  const [pendingSaveAsCopy, setPendingSaveAsCopy] = useState<boolean>(false);
   
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleConfirm = async (saveAsCopy: boolean) => {
+    // Show confirmation dialog if saving (overwriting)
+    if (!saveAsCopy) {
+      setPendingSaveAsCopy(saveAsCopy);
+      setShowConfirm(true);
+      return;
+    }
+
+    await executeCrop(saveAsCopy);
+  };
+
+  const executeCrop = async (saveAsCopy: boolean) => {
     setIsProcessing(true);
     try {
       // cropRegion is already in actual image coordinates
@@ -50,6 +64,15 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    setShowConfirm(false);
+    await executeCrop(pendingSaveAsCopy);
+  };
+
+  const handleCancelOverwrite = () => {
+    setShowConfirm(false);
   };
 
   // Get the image's position and scale relative to the container
@@ -159,10 +182,23 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
   const { offsetX, offsetY, scale } = getImageBounds();
 
   return (
-    <div className="crop-dialog-overlay">
-      <div className="crop-dialog">
-        <div className="crop-dialog-header">
-          <h2>Crop Image</h2>
+    <>
+      {showConfirm && (
+        <ConfirmDialog
+          title="确认覆盖原图"
+          message="此操作将覆盖原始图片，无法撤销。确定要继续吗？"
+          confirmText="确认覆盖"
+          cancelText="取消"
+          onConfirm={handleConfirmOverwrite}
+          onCancel={handleCancelOverwrite}
+          type="warning"
+        />
+      )}
+      
+      <div className="crop-dialog-overlay">
+        <div className="crop-dialog">
+          <div className="crop-dialog-header">
+            <h2>裁剪图片</h2>
           <button
             className="crop-dialog-close"
             onClick={onCancel}
@@ -276,5 +312,6 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
         </div>
       </div>
     </div>
+    </>
   );
 }

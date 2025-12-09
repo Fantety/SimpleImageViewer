@@ -7,6 +7,7 @@ export { ResizeDialog } from './ResizeDialog';
 export { FormatConverterDialog } from './FormatConverterDialog';
 export { CropDialog } from './CropDialog';
 export { BackgroundSetterDialog } from './BackgroundSetterDialog';
+export { ConfirmDialog } from './ConfirmDialog';
 export { ErrorBoundary } from './ErrorBoundary';
 export { Notification, NotificationContainer } from './Notification';
 export type { NotificationProps, NotificationData, NotificationType } from './Notification';

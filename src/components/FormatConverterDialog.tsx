@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { ImageFormat, ConversionOptions } from '../types/tauri';
+import { ConfirmDialog } from './ConfirmDialog';
 import './FormatConverterDialog.css';
 
 interface FormatConverterDialogProps {
@@ -34,6 +35,8 @@ export function FormatConverterDialog({
   const [quality, setQuality] = useState<number>(90);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [showConfirm, setShowConfirm] = useState<boolean>(false);
+  const [pendingSaveAsCopy, setPendingSaveAsCopy] = useState<boolean>(false);
 
   const supportsQuality = QUALITY_SUPPORTED_FORMATS.includes(selectedFormat);
 
@@ -71,6 +74,17 @@ export function FormatConverterDialog({
       return;
     }
 
+    // Show confirmation dialog if saving (overwriting)
+    if (!saveAsCopy) {
+      setPendingSaveAsCopy(saveAsCopy);
+      setShowConfirm(true);
+      return;
+    }
+
+    await executeConvert(saveAsCopy);
+  };
+
+  const executeConvert = async (saveAsCopy: boolean) => {
     setIsProcessing(true);
     setError(null);
 
@@ -86,6 +100,15 @@ export function FormatConverterDialog({
     }
   };
 
+  const handleConfirmOverwrite = async () => {
+    setShowConfirm(false);
+    await executeConvert(pendingSaveAsCopy);
+  };
+
+  const handleCancelOverwrite = () => {
+    setShowConfirm(false);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleConfirm(false); // Default to save (overwrite)
@@ -95,9 +118,22 @@ export function FormatConverterDialog({
   };
 
   return (
-    <div className="dialog-overlay" onClick={onCancel}>
-      <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
-        <h2>Convert Format</h2>
+    <>
+      {showConfirm && (
+        <ConfirmDialog
+          title="确认覆盖原图"
+          message="此操作将覆盖原始图片，无法撤销。确定要继续吗？"
+          confirmText="确认覆盖"
+          cancelText="取消"
+          onConfirm={handleConfirmOverwrite}
+          onCancel={handleCancelOverwrite}
+          type="warning"
+        />
+      )}
+      
+      <div className="dialog-overlay" onClick={onCancel}>
+        <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
+          <h2>格式转换</h2>
 
         <div className="dialog-body">
           <div className="current-format">
@@ -193,5 +229,6 @@ export function FormatConverterDialog({
         </div>
       </div>
     </div>
+    </>
   );
 }

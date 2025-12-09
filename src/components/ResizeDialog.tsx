@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ConfirmDialog } from './ConfirmDialog';
 import './ResizeDialog.css';
 
 interface ResizeDialogProps {
@@ -23,6 +24,8 @@ export function ResizeDialog({
   const [keepAspectRatio, setKeepAspectRatio] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [showConfirm, setShowConfirm] = useState<boolean>(false);
+  const [pendingSaveAsCopy, setPendingSaveAsCopy] = useState<boolean>(false);
 
   const aspectRatio = currentWidth / currentHeight;
 
@@ -111,6 +114,18 @@ export function ResizeDialog({
       }
     }
 
+    // Show confirmation dialog if saving (overwriting)
+    if (!saveAsCopy) {
+      setPendingSaveAsCopy(saveAsCopy);
+      setShowConfirm(true);
+      return;
+    }
+
+    // Proceed with save as copy
+    await executeResize(saveAsCopy);
+  };
+
+  const executeResize = async (saveAsCopy: boolean) => {
     const widthNum = parseInt(width, 10);
     const heightNum = parseInt(height, 10);
 
@@ -125,6 +140,15 @@ export function ResizeDialog({
     }
   };
 
+  const handleConfirmOverwrite = async () => {
+    setShowConfirm(false);
+    await executeResize(pendingSaveAsCopy);
+  };
+
+  const handleCancelOverwrite = () => {
+    setShowConfirm(false);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleConfirm(false); // Default to save (overwrite)
@@ -134,8 +158,21 @@ export function ResizeDialog({
   };
 
   return (
-    <div className="dialog-overlay" onClick={onCancel}>
-      <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
+    <>
+      {showConfirm && (
+        <ConfirmDialog
+          title="确认覆盖原图"
+          message="此操作将覆盖原始图片，无法撤销。确定要继续吗？"
+          confirmText="确认覆盖"
+          cancelText="取消"
+          onConfirm={handleConfirmOverwrite}
+          onCancel={handleCancelOverwrite}
+          type="warning"
+        />
+      )}
+      
+      <div className="dialog-overlay" onClick={onCancel}>
+        <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
         <h2>调整尺寸</h2>
         
         <div className="dialog-body">
@@ -257,5 +294,6 @@ export function ResizeDialog({
         </div>
       </div>
     </div>
+    </>
   );
 }

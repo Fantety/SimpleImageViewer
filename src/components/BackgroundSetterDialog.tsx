@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ConfirmDialog } from './ConfirmDialog';
 import './BackgroundSetterDialog.css';
 
 interface RGBColor {
@@ -21,6 +22,8 @@ export function BackgroundSetterDialog({
   const [color, setColor] = useState<string>('#ffffff');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [showConfirm, setShowConfirm] = useState<boolean>(false);
+  const [pendingSaveAsCopy, setPendingSaveAsCopy] = useState<boolean>(false);
 
   // Convert hex color to RGB
   const hexToRgb = (hex: string): RGBColor => {
@@ -41,6 +44,17 @@ export function BackgroundSetterDialog({
       return;
     }
 
+    // Show confirmation dialog if saving (overwriting)
+    if (!saveAsCopy) {
+      setPendingSaveAsCopy(saveAsCopy);
+      setShowConfirm(true);
+      return;
+    }
+
+    await executeSetBackground(saveAsCopy);
+  };
+
+  const executeSetBackground = async (saveAsCopy: boolean) => {
     setIsProcessing(true);
     setError(null);
 
@@ -51,6 +65,15 @@ export function BackgroundSetterDialog({
       setError(err instanceof Error ? err.message : 'Failed to set background');
       setIsProcessing(false);
     }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    setShowConfirm(false);
+    await executeSetBackground(pendingSaveAsCopy);
+  };
+
+  const handleCancelOverwrite = () => {
+    setShowConfirm(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -76,9 +99,22 @@ export function BackgroundSetterDialog({
   ];
 
   return (
-    <div className="dialog-overlay" onClick={onCancel}>
-      <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
-        <h2>设置背景</h2>
+    <>
+      {showConfirm && (
+        <ConfirmDialog
+          title="确认覆盖原图"
+          message="此操作将覆盖原始图片，无法撤销。确定要继续吗？"
+          confirmText="确认覆盖"
+          cancelText="取消"
+          onConfirm={handleConfirmOverwrite}
+          onCancel={handleCancelOverwrite}
+          type="warning"
+        />
+      )}
+      
+      <div className="dialog-overlay" onClick={onCancel}>
+        <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
+          <h2>设置背景</h2>
         
         <div className="dialog-body">
           {!hasAlpha && (
@@ -174,5 +210,6 @@ export function BackgroundSetterDialog({
         </div>
       </div>
     </div>
+    </>
   );
 }
