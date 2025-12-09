@@ -106,3 +106,33 @@ export async function convertFormat(
     options: options || null,
   });
 }
+
+/**
+ * Crop an image to the specified region
+ * 
+ * Extracts a rectangular region from the image. If the crop region extends beyond
+ * the image boundaries, it will be automatically constrained to fit within the image.
+ * 
+ * @param imageData - ImageData object containing the image to crop
+ * @param x - X coordinate of the top-left corner of the crop region
+ * @param y - Y coordinate of the top-left corner of the crop region
+ * @param width - Width of the crop region (must be positive integer)
+ * @param height - Height of the crop region (must be positive integer)
+ * @returns Promise resolving to new ImageData with cropped image
+ * @throws Error if parameters are invalid or crop operation fails
+ */
+export async function cropImage(
+  imageData: ImageData,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): Promise<ImageData> {
+  return await invoke<ImageData>('crop_image', {
+    imageData,
+    x,
+    y,
+    width,
+    height,
+  });
+}

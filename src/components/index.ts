@@ -5,4 +5,5 @@ export { Toolbar } from './Toolbar';
 export type { ToolbarProps } from './Toolbar';
 export { ResizeDialog } from './ResizeDialog';
 export { FormatConverterDialog } from './FormatConverterDialog';
+export { CropDialog } from './CropDialog';
 export * from './icons';

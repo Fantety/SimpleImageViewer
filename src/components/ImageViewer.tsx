@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppState } from '../contexts/AppStateContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat } from '../api/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage } from '../api/tauri';
 import type { ImageFormat, ConversionOptions } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
 import { ResizeDialog } from './ResizeDialog';
 import { FormatConverterDialog } from './FormatConverterDialog';
+import { CropDialog } from './CropDialog';
 import './ImageViewer.css';
 
 /**
@@ -45,6 +46,7 @@ export const ImageViewer: React.FC = () => {
   const imageRef = useRef<HTMLImageElement>(null);
   const [showResizeDialog, setShowResizeDialog] = useState<boolean>(false);
   const [showFormatConverterDialog, setShowFormatConverterDialog] = useState<boolean>(false);
+  const [showCropDialog, setShowCropDialog] = useState<boolean>(false);
 
   /**
    * Calculate adaptive scaling for the image to fit within the container
@@ -244,9 +246,62 @@ export const ImageViewer: React.FC = () => {
     setShowFormatConverterDialog(false);
   }, []);
 
+  /**
+   * Handle crop operation
+   * Opens the crop dialog (Requirement 4.1)
+   */
   const handleCrop = useCallback(() => {
-    console.log('Crop operation - to be implemented');
-    // TODO: Implement in task 11
+    if (state.currentImage) {
+      setShowCropDialog(true);
+    }
+  }, [state.currentImage]);
+
+  /**
+   * Handle crop confirmation
+   * Performs the crop operation and updates the image (Requirements 4.2, 4.3, 4.4, 4.5)
+   */
+  const handleCropConfirm = useCallback(async (
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ) => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+
+      // Call the crop API
+      const croppedImage = await cropImage(
+        state.currentImage,
+        x,
+        y,
+        width,
+        height
+      );
+
+      // Update state with the cropped image
+      setCurrentImage(croppedImage);
+      addToHistory(croppedImage);
+
+      // Close the dialog
+      setShowCropDialog(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '裁剪失败';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError]);
+
+  /**
+   * Handle crop cancellation
+   */
+  const handleCropCancel = useCallback(() => {
+    setShowCropDialog(false);
   }, []);
 
   const handleSetBackground = useCallback(() => {
@@ -408,6 +463,15 @@ export const ImageViewer: React.FC = () => {
           currentFormat={state.currentImage.format}
           onConfirm={handleConvertConfirm}
           onCancel={handleConvertCancel}
+        />
+      )}
+
+      {/* Crop Dialog */}
+      {showCropDialog && state.currentImage && (
+        <CropDialog
+          imageData={state.currentImage}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
         />
       )}
     </div>

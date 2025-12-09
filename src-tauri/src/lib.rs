@@ -17,6 +17,9 @@ mod resize_test;
 #[cfg(test)]
 mod format_conversion_test;
 
+#[cfg(test)]
+mod crop_test;
+
 // Re-export commonly used types
 pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor};
 pub use error::{AppError, AppResult};
@@ -535,6 +538,82 @@ fn update_file_extension(path: &str, format: &ImageFormat) -> String {
     }
 }
 
+/// Crop an image to the specified region
+/// 
+/// Extracts a rectangular region from the image. If the crop region extends beyond
+/// the image boundaries, it will be automatically constrained to fit within the image.
+/// 
+/// @param image_data - The image to crop
+/// @param x - X coordinate of the top-left corner of the crop region
+/// @param y - Y coordinate of the top-left corner of the crop region
+/// @param width - Width of the crop region
+/// @param height - Height of the crop region
+/// @returns New ImageData containing only the cropped region
+#[tauri::command]
+async fn crop_image(
+    image_data: ImageData,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> Result<ImageData, String> {
+    // Validate input parameters
+    if width == 0 || height == 0 {
+        return Err(AppError::InvalidParameters(
+            "Width and height must be positive integers".to_string()
+        ).into());
+    }
+    
+    // Constrain crop region to image boundaries
+    let constrained_x = x.min(image_data.width.saturating_sub(1));
+    let constrained_y = y.min(image_data.height.saturating_sub(1));
+    
+    // Calculate maximum available width and height from the constrained position
+    let max_width = image_data.width.saturating_sub(constrained_x);
+    let max_height = image_data.height.saturating_sub(constrained_y);
+    
+    let constrained_width = width.min(max_width).max(1);
+    let constrained_height = height.min(max_height).max(1);
+    
+    // Decode Base64 data
+    let decoded_data = general_purpose::STANDARD
+        .decode(&image_data.data)
+        .map_err(|e| AppError::InvalidImageData(format!("Failed to decode Base64: {}", e)))?;
+    
+    // Load image from decoded data
+    let img = image::load_from_memory(&decoded_data)
+        .map_err(AppError::ImageError)?;
+    
+    // Crop the image
+    let cropped = img.crop_imm(constrained_x, constrained_y, constrained_width, constrained_height);
+    
+    // Encode to the same format as the original
+    let mut output_buffer = Vec::new();
+    let format = image_data.format.to_image_format()
+        .ok_or_else(|| AppError::UnsupportedFormat(
+            format!("Cannot crop {} format", image_data.format)
+        ))?;
+    
+    cropped.write_to(&mut std::io::Cursor::new(&mut output_buffer), format)
+        .map_err(AppError::ImageError)?;
+    
+    // Encode to Base64
+    let base64_data = general_purpose::STANDARD.encode(&output_buffer);
+    
+    // Detect alpha channel in cropped image
+    let has_alpha = detect_alpha_channel(&cropped);
+    
+    // Return new ImageData with updated dimensions
+    Ok(ImageData {
+        path: image_data.path,
+        width: constrained_width,
+        height: constrained_height,
+        format: image_data.format,
+        data: base64_data,
+        has_alpha,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -548,7 +627,8 @@ pub fn run() {
             save_file_dialog,
             save_image,
             resize_image,
-            convert_format
+            convert_format,
+            crop_image
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

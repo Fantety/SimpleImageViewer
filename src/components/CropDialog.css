@@ -1,0 +1,276 @@
+.crop-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.crop-dialog {
+  background-color: var(--color-surface);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.crop-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.crop-dialog-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.crop-dialog-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.crop-dialog-close:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.crop-dialog-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.crop-dialog-content {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.crop-preview-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--color-viewer-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  min-height: 400px;
+  user-select: none;
+}
+
+.crop-preview-image {
+  max-width: 100%;
+  max-height: 60vh;
+  display: block;
+  pointer-events: none;
+}
+
+.crop-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.crop-overlay-dark {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.crop-overlay-top {
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.crop-overlay-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.crop-overlay-left {
+  left: 0;
+}
+
+.crop-overlay-right {
+  right: 0;
+}
+
+.crop-selection {
+  position: absolute;
+  border: 2px solid var(--color-accent);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  cursor: move;
+  pointer-events: auto;
+}
+
+.crop-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: var(--color-accent);
+  border: 2px solid white;
+  border-radius: 50%;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.crop-handle-nw {
+  top: -6px;
+  left: -6px;
+  cursor: nw-resize;
+}
+
+.crop-handle-ne {
+  top: -6px;
+  right: -6px;
+  cursor: ne-resize;
+}
+
+.crop-handle-sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: sw-resize;
+}
+
+.crop-handle-se {
+  bottom: -6px;
+  right: -6px;
+  cursor: se-resize;
+}
+
+.crop-handle-n {
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: n-resize;
+}
+
+.crop-handle-s {
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: s-resize;
+}
+
+.crop-handle-e {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: e-resize;
+}
+
+.crop-handle-w {
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: w-resize;
+}
+
+.crop-dimensions {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.crop-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crop-info p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.crop-size-info {
+  font-weight: 500;
+  color: var(--color-text-primary) !important;
+}
+
+.crop-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.crop-dialog-button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.crop-dialog-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.crop-dialog-button-cancel {
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.crop-dialog-button-cancel:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+}
+
+.crop-dialog-button-confirm {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+.crop-dialog-button-confirm:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}
