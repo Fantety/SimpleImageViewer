@@ -46,9 +46,13 @@
   font-size: var(--font-size-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  /* Performance optimization: Fast transitions for <100ms response (Requirement 8.5) */
+  transition: all 0.08s ease-out;
   white-space: nowrap;
   position: relative;
+  /* Use GPU acceleration for smooth interactions */
+  transform: translateZ(0);
+  will-change: transform, background-color;
 }
 
 .toolbar-button:hover:not(:disabled) {
@@ -59,7 +63,7 @@
 
 .toolbar-button:active:not(:disabled) {
   background-color: var(--color-button-active);
-  transform: translateY(1px);
+  transform: translateZ(0) translateY(1px);
 }
 
 .toolbar-button:disabled {

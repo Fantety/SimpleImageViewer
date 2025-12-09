@@ -34,7 +34,11 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all var(--transition-normal);
+  /* Performance optimization: Fast transitions for <100ms response (Requirement 8.5) */
+  transition: all 0.08s ease-out;
+  /* Use GPU acceleration */
+  transform: translateZ(0);
+  will-change: transform, background-color;
 }
 
 .open-button:hover:not(:disabled) {
@@ -44,7 +48,7 @@
 
 .open-button:active:not(:disabled) {
   background-color: var(--color-button-active);
-  transform: scale(0.98);
+  transform: translateZ(0) scale(0.98);
 }
 
 .open-button:disabled {
@@ -119,6 +123,22 @@
   margin: 0;
 }
 
+/* Loading progress bar */
+.loading-progress {
+  width: 200px;
+  height: 4px;
+  background-color: var(--color-surface);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.loading-progress-bar {
+  height: 100%;
+  background-color: var(--color-accent);
+  transition: width 0.3s ease-out;
+  border-radius: var(--radius-sm);
+}
+
 /* Error state */
 .error-state {
   display: flex;
@@ -175,6 +195,9 @@
   justify-content: center;
   width: 100%;
   height: 100%;
+  /* Performance optimization: Use GPU acceleration */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .main-image {
@@ -191,6 +214,12 @@
     linear-gradient(-45deg, transparent 75%, #ccc 75%);
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  /* Performance optimization: Use GPU acceleration for smooth rendering */
+  transform: translateZ(0);
+  will-change: transform;
+  /* Optimize image rendering quality */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
 }
 
 [data-theme="dark"] .main-image {
@@ -214,6 +243,8 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
+  /* Performance optimization: Use GPU acceleration */
+  will-change: transform;
 }
 
 .nav-button {
@@ -228,18 +259,22 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-normal);
+  /* Performance optimization: Fast transitions for <100ms response */
+  transition: all 0.08s ease-out;
+  /* Use GPU acceleration for smooth animations */
+  transform: translateZ(0);
+  will-change: transform, background-color;
 }
 
 .nav-button:hover {
   background-color: var(--color-button-hover);
   border-color: var(--color-accent);
-  transform: scale(1.05);
+  transform: translateZ(0) scale(1.05);
 }
 
 .nav-button:active {
   background-color: var(--color-button-active);
-  transform: scale(0.95);
+  transform: translateZ(0) scale(0.95);
 }
 
 /* Responsive adjustments */
