@@ -3,6 +3,7 @@ import { useAppState } from '../contexts/AppStateContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
 import { loadImage, openFileDialog, getDirectoryImages } from '../api/tauri';
 import { Icon } from './Icon';
+import { Toolbar } from './Toolbar';
 import './ImageViewer.css';
 
 /**
@@ -129,6 +130,34 @@ export const ImageViewer: React.FC = () => {
   ]);
 
   /**
+   * Placeholder handlers for edit operations (to be implemented in future tasks)
+   */
+  const handleResize = useCallback(() => {
+    console.log('Resize operation - to be implemented');
+    // TODO: Implement in task 9
+  }, []);
+
+  const handleConvert = useCallback(() => {
+    console.log('Convert operation - to be implemented');
+    // TODO: Implement in task 10
+  }, []);
+
+  const handleCrop = useCallback(() => {
+    console.log('Crop operation - to be implemented');
+    // TODO: Implement in task 11
+  }, []);
+
+  const handleSetBackground = useCallback(() => {
+    console.log('Set background operation - to be implemented');
+    // TODO: Implement in task 12
+  }, []);
+
+  const handleSave = useCallback(() => {
+    console.log('Save operation - to be implemented');
+    // TODO: Implement in task 15
+  }, []);
+
+  /**
    * Handle keyboard navigation
    */
   useEffect(() => {
@@ -140,15 +169,31 @@ export const ImageViewer: React.FC = () => {
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
         e.preventDefault();
         handleOpenFile();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (state.currentImage) {
+          handleSave();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canNavigate, goToPrevious, goToNext, handleOpenFile]);
+  }, [canNavigate, goToPrevious, goToNext, handleOpenFile, handleSave, state.currentImage]);
 
   return (
     <div className="image-viewer">
+      {/* Toolbar with edit operations and theme toggle */}
+      <Toolbar
+        onResize={handleResize}
+        onConvert={handleConvert}
+        onCrop={handleCrop}
+        onSetBackground={handleSetBackground}
+        onSave={handleSave}
+        disabled={!state.currentImage || state.isLoading}
+        hasAlpha={state.currentImage?.hasAlpha || false}
+      />
+
       {/* Header with open button and image info */}
       <div className="image-viewer-header">
         <button 
@@ -203,7 +248,7 @@ export const ImageViewer: React.FC = () => {
         {!state.currentImage && !state.isLoading && !state.error && (
           <div className="empty-state">
             <Icon name="open" size={64} color="var(--color-text-secondary)" />
-            <p>点击"打开图片"或按 Ctrl+O 开始</p>
+            <p>点击&ldquo;打开图片&rdquo;或按 Ctrl+O 开始</p>
           </div>
         )}
 

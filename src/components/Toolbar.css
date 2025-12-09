@@ -1,0 +1,142 @@
+/**
+ * Toolbar Component Styles
+ * 
+ * Provides styling for the toolbar with:
+ * - Responsive layout
+ * - Theme-aware colors
+ * - Hover and active states
+ * - Disabled state styling
+ * - Tooltip positioning
+ */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-toolbar-bg);
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--spacing-md);
+  min-height: 56px;
+}
+
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.toolbar-edit {
+  flex: 1;
+}
+
+.toolbar-settings {
+  flex-shrink: 0;
+}
+
+.toolbar-button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--color-button-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  position: relative;
+}
+
+.toolbar-button:hover:not(:disabled) {
+  background-color: var(--color-button-hover);
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.toolbar-button:active:not(:disabled) {
+  background-color: var(--color-button-active);
+  transform: translateY(1px);
+}
+
+.toolbar-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--color-surface);
+}
+
+.toolbar-button-label {
+  user-select: none;
+}
+
+/* Primary button variant (for Save) */
+.toolbar-button-primary {
+  background-color: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.toolbar-button-primary:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.toolbar-button-primary:disabled {
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+
+/* Icon-only button variant (for theme toggle) */
+.toolbar-button-icon-only {
+  padding: var(--spacing-xs);
+  min-width: 40px;
+  justify-content: center;
+}
+
+.toolbar-button-icon-only .toolbar-button-label {
+  display: none;
+}
+
+/* Divider */
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background-color: var(--color-border);
+  margin: 0 var(--spacing-xs);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .toolbar {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    min-height: 48px;
+  }
+
+  .toolbar-section {
+    gap: var(--spacing-xxs);
+  }
+
+  .toolbar-button {
+    padding: var(--spacing-xs);
+    min-width: 40px;
+    justify-content: center;
+  }
+
+  .toolbar-button-label {
+    display: none;
+  }
+
+  .toolbar-divider {
+    margin: 0 var(--spacing-xxs);
+  }
+}
+
+/* Focus styles for accessibility */
+.toolbar-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

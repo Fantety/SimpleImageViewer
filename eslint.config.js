@@ -8,6 +8,9 @@ import globals from 'globals';
 export default [
   js.configs.recommended,
   {
+    ignores: ['dist/**', 'node_modules/**', 'src-tauri/target/**'],
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsparser,
