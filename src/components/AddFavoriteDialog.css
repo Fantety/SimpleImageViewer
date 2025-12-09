@@ -142,6 +142,17 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-height: 40px;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.add-favorite-tags-empty {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-style: italic;
 }
 
 .add-favorite-tag {

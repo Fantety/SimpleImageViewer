@@ -28,7 +28,8 @@ export function AddFavoriteDialog({
       setTags(existingTags);
       loadAllTags();
     }
-  }, [isOpen, existingTags]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const loadAllTags = async () => {
     try {
@@ -41,10 +42,24 @@ export function AddFavoriteDialog({
 
   const addTag = (tag: string) => {
     const trimmedTag = tag.trim();
-    if (trimmedTag && !tags.includes(trimmedTag)) {
-      setTags([...tags, trimmedTag]);
-      setTagInput('');
+    console.log('addTag called with:', tag, 'trimmed:', trimmedTag);
+    console.log('current tags:', tags);
+    
+    if (!trimmedTag) {
+      // 如果输入为空，不做任何操作
+      console.log('Tag is empty, not adding');
+      return;
     }
+    if (tags.includes(trimmedTag)) {
+      // 如果标签已存在，清空输入框但不添加
+      console.log('Tag already exists, clearing input');
+      setTagInput('');
+      return;
+    }
+    // 添加标签并清空输入框
+    console.log('Adding tag:', trimmedTag);
+    setTags([...tags, trimmedTag]);
+    setTagInput('');
   };
 
   const removeTag = (tagToRemove: string) => {
@@ -111,9 +126,9 @@ export function AddFavoriteDialog({
               />
             </div>
 
-            {tags.length > 0 && (
-              <div className="add-favorite-tags-list">
-                {tags.map(tag => (
+            <div className="add-favorite-tags-list">
+              {tags.length > 0 ? (
+                tags.map(tag => (
                   <div key={tag} className="add-favorite-tag">
                     <span>{tag}</span>
                     <button
@@ -124,9 +139,13 @@ export function AddFavoriteDialog({
                       ×
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              ) : (
+                <div className="add-favorite-tags-empty">
+                  还没有添加标签
+                </div>
+              )}
+            </div>
 
             {suggestedTags.length > 0 && (
               <div className="add-favorite-suggestions">
