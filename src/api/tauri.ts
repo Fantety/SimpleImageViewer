@@ -225,3 +225,35 @@ export async function setBackground(
   
   return result;
 }
+
+/**
+ * Rotate an image by 90 degrees
+ * 
+ * Ensures immutability: creates a snapshot of the original ImageData before the operation
+ * and verifies it was not mutated after the operation completes.
+ * 
+ * @param imageData - ImageData object containing the image to rotate
+ * @param clockwise - If true, rotate 90° clockwise; if false, rotate 90° counter-clockwise
+ * @returns Promise resolving to new ImageData with rotated image
+ * @throws Error if rotation fails or immutability is violated
+ */
+export async function rotateImage(
+  imageData: ImageData,
+  clockwise: boolean
+): Promise<ImageData> {
+  // Create a snapshot of the original for immutability verification
+  const originalSnapshot = deepCopyImageData(imageData);
+  
+  // Perform the rotate operation
+  const result = await invoke<ImageData>('rotate_image', {
+    imageData,
+    clockwise,
+  });
+  
+  // Verify that the original was not mutated
+  if (!areImageDataEqual(originalSnapshot, imageData)) {
+    throw new Error('Immutability violation: original ImageData was mutated during rotate operation');
+  }
+  
+  return result;
+}

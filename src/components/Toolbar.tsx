@@ -24,6 +24,8 @@ export interface ToolbarProps {
   onConvert: () => void;
   onCrop: () => void;
   onSetBackground: () => void;
+  onRotateLeft: () => void;
+  onRotateRight: () => void;
   disabled: boolean;
   hasAlpha?: boolean; // For conditional background button enabling
 }
@@ -33,6 +35,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onConvert,
   onCrop,
   onSetBackground,
+  onRotateLeft,
+  onRotateRight,
   disabled,
   hasAlpha = false,
 }) => {
@@ -89,6 +93,30 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         >
           <Icon name="background" size={20} />
           <span className="toolbar-button-label">背景设置</span>
+        </button>
+
+        <div className="toolbar-divider" />
+
+        <button
+          className="toolbar-button"
+          onClick={onRotateLeft}
+          disabled={disabled}
+          title="逆时针旋转90° - 旋转后自动保存"
+          aria-label="逆时针旋转"
+        >
+          <Icon name="rotate-left" size={20} />
+          <span className="toolbar-button-label">逆时针</span>
+        </button>
+
+        <button
+          className="toolbar-button"
+          onClick={onRotateRight}
+          disabled={disabled}
+          title="顺时针旋转90° - 旋转后自动保存"
+          aria-label="顺时针旋转"
+        >
+          <Icon name="rotate-right" size={20} />
+          <span className="toolbar-button-label">顺时针</span>
         </button>
       </div>
 

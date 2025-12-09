@@ -12,6 +12,8 @@ import { ThemeDarkIcon } from './ThemeDarkIcon';
 import { ZoomInIcon } from './ZoomInIcon';
 import { ZoomOutIcon } from './ZoomOutIcon';
 import { ResetZoomIcon } from './ResetZoomIcon';
+import { RotateLeftIcon } from './RotateLeftIcon';
+import { RotateRightIcon } from './RotateRightIcon';
 
 export type IconName = 
   | 'resize'
@@ -26,7 +28,9 @@ export type IconName =
   | 'theme-dark'
   | 'plus'
   | 'minus'
-  | 'reset';
+  | 'reset'
+  | 'rotate-left'
+  | 'rotate-right';
 
 export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = {
   'resize': ResizeIcon,
@@ -42,6 +46,8 @@ export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = 
   'plus': ZoomInIcon,
   'minus': ZoomOutIcon,
   'reset': ResetZoomIcon,
+  'rotate-left': RotateLeftIcon,
+  'rotate-right': RotateRightIcon,
 };
 
 // Export individual icons for direct use if needed
@@ -59,4 +65,6 @@ export {
   ZoomInIcon,
   ZoomOutIcon,
   ResetZoomIcon,
+  RotateLeftIcon,
+  RotateRightIcon,
 };

@@ -703,6 +703,59 @@ async fn set_background(
     })
 }
 
+/// Rotate an image by 90 degrees clockwise or counter-clockwise
+/// 
+/// @param image_data - ImageData object containing the image to rotate
+/// @param clockwise - If true, rotate 90° clockwise; if false, rotate 90° counter-clockwise
+/// @returns New ImageData with rotated image (width and height are swapped)
+#[tauri::command]
+async fn rotate_image(
+    image_data: ImageData,
+    clockwise: bool,
+) -> Result<ImageData, String> {
+    // Decode Base64 data
+    let decoded_data = general_purpose::STANDARD
+        .decode(&image_data.data)
+        .map_err(|e| AppError::InvalidImageData(format!("Failed to decode Base64: {}", e)))?;
+    
+    // Load image from decoded data
+    let img = image::load_from_memory(&decoded_data)
+        .map_err(AppError::ImageError)?;
+    
+    // Rotate the image
+    let rotated = if clockwise {
+        img.rotate90()
+    } else {
+        img.rotate270()
+    };
+    
+    // Encode to the same format as the original
+    let mut output_buffer = Vec::new();
+    let format = image_data.format.to_image_format()
+        .ok_or_else(|| AppError::UnsupportedFormat(
+            format!("Cannot rotate {} format", image_data.format)
+        ))?;
+    
+    rotated.write_to(&mut std::io::Cursor::new(&mut output_buffer), format)
+        .map_err(AppError::ImageError)?;
+    
+    // Encode to Base64
+    let base64_data = general_purpose::STANDARD.encode(&output_buffer);
+    
+    // Detect alpha channel in rotated image
+    let has_alpha = detect_alpha_channel(&rotated);
+    
+    // Return new ImageData with swapped dimensions
+    Ok(ImageData {
+        path: image_data.path,
+        width: rotated.width(),
+        height: rotated.height(),
+        format: image_data.format,
+        data: base64_data,
+        has_alpha,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -718,7 +771,8 @@ pub fn run() {
             resize_image,
             convert_format,
             crop_image,
-            set_background
+            set_background,
+            rotate_image
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

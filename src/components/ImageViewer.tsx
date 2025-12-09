@@ -4,7 +4,7 @@ import { useAppState } from '../contexts/AppStateContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
 import { useImageZoom } from '../hooks/useImageZoom';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, saveImage, saveFileDialog } from '../api/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog } from '../api/tauri';
 import type { ImageFormat, ConversionOptions, RGBColor } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
@@ -621,6 +621,100 @@ export const ImageViewer: React.FC = () => {
     setShowBackgroundSetterDialog(false);
   }, []);
 
+  /**
+   * Handle rotate left (counter-clockwise 90°)
+   * Rotates the image and automatically saves it
+   */
+  const handleRotateLeft = useCallback(async () => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+      setLoadingProgress(0);
+      setOperationName('旋转图片');
+
+      setLoadingProgress(30);
+
+      // Rotate the image counter-clockwise
+      const rotatedImage = await rotateImage(state.currentImage, false);
+
+      setLoadingProgress(60);
+
+      // Save the rotated image to the original path
+      await saveImage(rotatedImage, state.currentImage.path);
+
+      setLoadingProgress(80);
+
+      // Update state with the rotated image
+      setCurrentImage(rotatedImage);
+      addToHistory(rotatedImage);
+
+      setLoadingProgress(100);
+
+      showSuccess('旋转成功', '图片已逆时针旋转90°并保存');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '旋转失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      logError('Failed to rotate image left', error, 'ImageViewer', { operation: 'rotateLeft' });
+      setError(errorMessage);
+      showError('旋转失败', errorMessage);
+    } finally {
+      setLoading(false);
+      setLoadingProgress(0);
+      setOperationName('');
+    }
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError, showSuccess, showError]);
+
+  /**
+   * Handle rotate right (clockwise 90°)
+   * Rotates the image and automatically saves it
+   */
+  const handleRotateRight = useCallback(async () => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+      setLoadingProgress(0);
+      setOperationName('旋转图片');
+
+      setLoadingProgress(30);
+
+      // Rotate the image clockwise
+      const rotatedImage = await rotateImage(state.currentImage, true);
+
+      setLoadingProgress(60);
+
+      // Save the rotated image to the original path
+      await saveImage(rotatedImage, state.currentImage.path);
+
+      setLoadingProgress(80);
+
+      // Update state with the rotated image
+      setCurrentImage(rotatedImage);
+      addToHistory(rotatedImage);
+
+      setLoadingProgress(100);
+
+      showSuccess('旋转成功', '图片已顺时针旋转90°并保存');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '旋转失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      logError('Failed to rotate image right', error, 'ImageViewer', { operation: 'rotateRight' });
+      setError(errorMessage);
+      showError('旋转失败', errorMessage);
+    } finally {
+      setLoading(false);
+      setLoadingProgress(0);
+      setOperationName('');
+    }
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError, showSuccess, showError]);
+
 
 
   /**
@@ -811,6 +905,8 @@ export const ImageViewer: React.FC = () => {
           onConvert={handleConvert}
           onCrop={handleCrop}
           onSetBackground={handleSetBackground}
+          onRotateLeft={handleRotateLeft}
+          onRotateRight={handleRotateRight}
           disabled={!state.currentImage || state.isLoading}
           hasAlpha={state.currentImage?.hasAlpha || false}
         />
