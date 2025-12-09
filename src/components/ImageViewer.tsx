@@ -239,7 +239,8 @@ export const ImageViewer: React.FC = () => {
   const handleResizeConfirm = useCallback(async (
     width: number,
     height: number,
-    keepAspectRatio: boolean
+    keepAspectRatio: boolean,
+    saveAsCopy: boolean
   ) => {
     if (!state.currentImage) {
       return;
@@ -261,11 +262,38 @@ export const ImageViewer: React.FC = () => {
         keepAspectRatio
       );
 
-      setLoadingProgress(80);
+      setLoadingProgress(60);
 
-      // Update state with the resized image
-      setCurrentImage(resizedImage);
-      addToHistory(resizedImage);
+      if (saveAsCopy) {
+        // Save as copy - open save dialog
+        const currentPath = state.currentImage.path;
+        const fileName = currentPath.split('/').pop() || 'image';
+        const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+        const ext = fileName.substring(fileName.lastIndexOf('.'));
+        const defaultName = `${fileNameWithoutExt}_resized${ext}`;
+        
+        const savePath = await saveFileDialog(defaultName);
+        
+        if (!savePath) {
+          // User cancelled
+          setLoading(false);
+          setLoadingProgress(0);
+          setOperationName('');
+          setShowResizeDialog(false);
+          return;
+        }
+
+        setLoadingProgress(80);
+        await saveImage(resizedImage, savePath);
+        showSuccess('保存成功', `图片已保存到 ${savePath.split('/').pop()}`);
+      } else {
+        // Save (overwrite) - update current image
+        setLoadingProgress(80);
+        await saveImage(resizedImage, state.currentImage.path);
+        setCurrentImage(resizedImage);
+        addToHistory(resizedImage);
+        showSuccess('保存成功', '图片已更新');
+      }
 
       setLoadingProgress(100);
 
@@ -274,14 +302,15 @@ export const ImageViewer: React.FC = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '调整尺寸失败';
       const error = err instanceof Error ? err : new Error(errorMessage);
-      logError('Failed to resize image', error, 'ImageViewer', { operation: 'resize', width, height, keepAspectRatio });
+      logError('Failed to resize image', error, 'ImageViewer', { operation: 'resize', width, height, keepAspectRatio, saveAsCopy });
       setError(errorMessage);
+      showError('操作失败', errorMessage);
     } finally {
       setLoading(false);
       setLoadingProgress(0);
       setOperationName('');
     }
-  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError]);
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError, showSuccess, showError]);
 
   /**
    * Handle resize cancellation
@@ -306,6 +335,7 @@ export const ImageViewer: React.FC = () => {
    */
   const handleConvertConfirm = useCallback(async (
     targetFormat: ImageFormat,
+    saveAsCopy: boolean,
     options?: ConversionOptions
   ) => {
     if (!state.currentImage) {
@@ -327,11 +357,38 @@ export const ImageViewer: React.FC = () => {
         options
       );
 
-      setLoadingProgress(80);
+      setLoadingProgress(60);
 
-      // Update state with the converted image
-      setCurrentImage(convertedImage);
-      addToHistory(convertedImage);
+      if (saveAsCopy) {
+        // Save as copy - open save dialog
+        const currentPath = state.currentImage.path;
+        const fileName = currentPath.split('/').pop() || 'image';
+        const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+        const newExt = `.${targetFormat.toLowerCase()}`;
+        const defaultName = `${fileNameWithoutExt}${newExt}`;
+        
+        const savePath = await saveFileDialog(defaultName);
+        
+        if (!savePath) {
+          // User cancelled
+          setLoading(false);
+          setLoadingProgress(0);
+          setOperationName('');
+          setShowFormatConverterDialog(false);
+          return;
+        }
+
+        setLoadingProgress(80);
+        await saveImage(convertedImage, savePath);
+        showSuccess('保存成功', `图片已保存到 ${savePath.split('/').pop()}`);
+      } else {
+        // Save (overwrite) - update current image
+        setLoadingProgress(80);
+        await saveImage(convertedImage, state.currentImage.path);
+        setCurrentImage(convertedImage);
+        addToHistory(convertedImage);
+        showSuccess('保存成功', '图片已更新');
+      }
 
       setLoadingProgress(100);
 
@@ -340,14 +397,15 @@ export const ImageViewer: React.FC = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '格式转换失败';
       const error = err instanceof Error ? err : new Error(errorMessage);
-      logError('Failed to convert format', error, 'ImageViewer', { operation: 'convert', targetFormat, options });
+      logError('Failed to convert format', error, 'ImageViewer', { operation: 'convert', targetFormat, saveAsCopy, options });
       setError(errorMessage);
+      showError('操作失败', errorMessage);
     } finally {
       setLoading(false);
       setLoadingProgress(0);
       setOperationName('');
     }
-  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError]);
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError, showSuccess, showError]);
 
   /**
    * Handle format converter cancellation
@@ -374,7 +432,8 @@ export const ImageViewer: React.FC = () => {
     x: number,
     y: number,
     width: number,
-    height: number
+    height: number,
+    saveAsCopy: boolean
   ) => {
     if (!state.currentImage) {
       return;
@@ -397,11 +456,38 @@ export const ImageViewer: React.FC = () => {
         height
       );
 
-      setLoadingProgress(80);
+      setLoadingProgress(60);
 
-      // Update state with the cropped image
-      setCurrentImage(croppedImage);
-      addToHistory(croppedImage);
+      if (saveAsCopy) {
+        // Save as copy - open save dialog
+        const currentPath = state.currentImage.path;
+        const fileName = currentPath.split('/').pop() || 'image';
+        const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+        const ext = fileName.substring(fileName.lastIndexOf('.'));
+        const defaultName = `${fileNameWithoutExt}_cropped${ext}`;
+        
+        const savePath = await saveFileDialog(defaultName);
+        
+        if (!savePath) {
+          // User cancelled
+          setLoading(false);
+          setLoadingProgress(0);
+          setOperationName('');
+          setShowCropDialog(false);
+          return;
+        }
+
+        setLoadingProgress(80);
+        await saveImage(croppedImage, savePath);
+        showSuccess('保存成功', `图片已保存到 ${savePath.split('/').pop()}`);
+      } else {
+        // Save (overwrite) - update current image
+        setLoadingProgress(80);
+        await saveImage(croppedImage, state.currentImage.path);
+        setCurrentImage(croppedImage);
+        addToHistory(croppedImage);
+        showSuccess('保存成功', '图片已更新');
+      }
 
       setLoadingProgress(100);
 
@@ -410,14 +496,15 @@ export const ImageViewer: React.FC = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '裁剪失败';
       const error = err instanceof Error ? err : new Error(errorMessage);
-      logError('Failed to crop image', error, 'ImageViewer', { operation: 'crop', x, y, width, height });
+      logError('Failed to crop image', error, 'ImageViewer', { operation: 'crop', x, y, width, height, saveAsCopy });
       setError(errorMessage);
+      showError('操作失败', errorMessage);
     } finally {
       setLoading(false);
       setLoadingProgress(0);
       setOperationName('');
     }
-  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError]);
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError, showSuccess, showError]);
 
   /**
    * Handle crop cancellation
@@ -440,7 +527,7 @@ export const ImageViewer: React.FC = () => {
    * Handle background setting confirmation
    * Applies the background color to transparent areas (Requirements 5.3, 5.4, 5.5)
    */
-  const handleSetBackgroundConfirm = useCallback(async (color: RGBColor) => {
+  const handleSetBackgroundConfirm = useCallback(async (color: RGBColor, saveAsCopy: boolean) => {
     if (!state.currentImage) {
       return;
     }
@@ -461,11 +548,38 @@ export const ImageViewer: React.FC = () => {
         color.b
       );
 
-      setLoadingProgress(80);
+      setLoadingProgress(60);
 
-      // Update state with the image with background applied
-      setCurrentImage(imageWithBackground);
-      addToHistory(imageWithBackground);
+      if (saveAsCopy) {
+        // Save as copy - open save dialog
+        const currentPath = state.currentImage.path;
+        const fileName = currentPath.split('/').pop() || 'image';
+        const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+        const ext = fileName.substring(fileName.lastIndexOf('.'));
+        const defaultName = `${fileNameWithoutExt}_background${ext}`;
+        
+        const savePath = await saveFileDialog(defaultName);
+        
+        if (!savePath) {
+          // User cancelled
+          setLoading(false);
+          setLoadingProgress(0);
+          setOperationName('');
+          setShowBackgroundSetterDialog(false);
+          return;
+        }
+
+        setLoadingProgress(80);
+        await saveImage(imageWithBackground, savePath);
+        showSuccess('保存成功', `图片已保存到 ${savePath.split('/').pop()}`);
+      } else {
+        // Save (overwrite) - update current image
+        setLoadingProgress(80);
+        await saveImage(imageWithBackground, state.currentImage.path);
+        setCurrentImage(imageWithBackground);
+        addToHistory(imageWithBackground);
+        showSuccess('保存成功', '图片已更新');
+      }
 
       setLoadingProgress(100);
 
@@ -474,14 +588,15 @@ export const ImageViewer: React.FC = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '设置背景失败';
       const error = err instanceof Error ? err : new Error(errorMessage);
-      logError('Failed to set background', error, 'ImageViewer', { operation: 'setBackground', color });
+      logError('Failed to set background', error, 'ImageViewer', { operation: 'setBackground', color, saveAsCopy });
       setError(errorMessage);
+      showError('操作失败', errorMessage);
     } finally {
       setLoading(false);
       setLoadingProgress(0);
       setOperationName('');
     }
-  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError]);
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError, showSuccess, showError]);
 
   /**
    * Handle background setter cancellation

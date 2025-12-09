@@ -4,7 +4,7 @@ import './FormatConverterDialog.css';
 
 interface FormatConverterDialogProps {
   currentFormat: ImageFormat;
-  onConfirm: (targetFormat: ImageFormat, options?: ConversionOptions) => Promise<void>;
+  onConfirm: (targetFormat: ImageFormat, saveAsCopy: boolean, options?: ConversionOptions) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -66,7 +66,7 @@ export function FormatConverterDialog({
     return true;
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (saveAsCopy: boolean) => {
     if (!validateInputs()) {
       return;
     }
@@ -79,7 +79,7 @@ export function FormatConverterDialog({
         ? { quality }
         : undefined;
 
-      await onConfirm(selectedFormat, options);
+      await onConfirm(selectedFormat, saveAsCopy, options);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to convert format');
       setIsProcessing(false);
@@ -88,7 +88,7 @@ export function FormatConverterDialog({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleConfirm();
+      handleConfirm(false); // Default to save (overwrite)
     } else if (e.key === 'Escape') {
       onCancel();
     }
@@ -174,14 +174,21 @@ export function FormatConverterDialog({
             onClick={onCancel}
             disabled={isProcessing}
           >
-            Cancel
+            取消
+          </button>
+          <button
+            className="button button-secondary"
+            onClick={() => handleConfirm(true)}
+            disabled={isProcessing}
+          >
+            {isProcessing ? '处理中...' : '保存副本'}
           </button>
           <button
             className="button button-primary"
-            onClick={handleConfirm}
+            onClick={() => handleConfirm(false)}
             disabled={isProcessing}
           >
-            {isProcessing ? 'Converting...' : 'Convert'}
+            {isProcessing ? '处理中...' : '保存'}
           </button>
         </div>
       </div>

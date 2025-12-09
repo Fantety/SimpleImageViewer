@@ -9,7 +9,7 @@ interface RGBColor {
 
 interface BackgroundSetterDialogProps {
   hasAlpha: boolean;
-  onConfirm: (color: RGBColor) => Promise<void>;
+  onConfirm: (color: RGBColor, saveAsCopy: boolean) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -35,7 +35,7 @@ export function BackgroundSetterDialog({
     };
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (saveAsCopy: boolean) => {
     if (!hasAlpha) {
       setError('This image does not have transparency. Background setting is only applicable to transparent images.');
       return;
@@ -46,7 +46,7 @@ export function BackgroundSetterDialog({
 
     try {
       const rgb = hexToRgb(color);
-      await onConfirm(rgb);
+      await onConfirm(rgb, saveAsCopy);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set background');
       setIsProcessing(false);
@@ -55,7 +55,7 @@ export function BackgroundSetterDialog({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleConfirm();
+      handleConfirm(false); // Default to save (overwrite)
     } else if (e.key === 'Escape') {
       onCancel();
     }
@@ -158,11 +158,18 @@ export function BackgroundSetterDialog({
             取消
           </button>
           <button
-            className="button button-primary"
-            onClick={handleConfirm}
+            className="button button-secondary"
+            onClick={() => handleConfirm(true)}
             disabled={isProcessing || !hasAlpha}
           >
-            {isProcessing ? '处理中...' : '应用'}
+            {isProcessing ? '处理中...' : '保存副本'}
+          </button>
+          <button
+            className="button button-primary"
+            onClick={() => handleConfirm(false)}
+            disabled={isProcessing || !hasAlpha}
+          >
+            {isProcessing ? '处理中...' : '保存'}
           </button>
         </div>
       </div>

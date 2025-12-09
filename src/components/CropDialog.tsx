@@ -4,7 +4,7 @@ import './CropDialog.css';
 
 interface CropDialogProps {
   imageData: ImageData;
-  onConfirm: (x: number, y: number, width: number, height: number) => Promise<void>;
+  onConfirm: (x: number, y: number, width: number, height: number, saveAsCopy: boolean) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -33,7 +33,7 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (saveAsCopy: boolean) => {
     setIsProcessing(true);
     try {
       // Convert from display coordinates to actual image coordinates
@@ -43,7 +43,7 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
       const actualWidth = Math.round(cropRegion.width / scale);
       const actualHeight = Math.round(cropRegion.height / scale);
       
-      await onConfirm(actualX, actualY, actualWidth, actualHeight);
+      await onConfirm(actualX, actualY, actualWidth, actualHeight, saveAsCopy);
     } catch (error) {
       console.error('Crop failed:', error);
       alert(`Crop failed: ${error}`);
@@ -273,14 +273,21 @@ export function CropDialog({ imageData, onConfirm, onCancel }: CropDialogProps) 
             onClick={onCancel}
             disabled={isProcessing}
           >
-            Cancel
+            取消
+          </button>
+          <button
+            className="crop-dialog-button crop-dialog-button-secondary"
+            onClick={() => handleConfirm(true)}
+            disabled={isProcessing}
+          >
+            {isProcessing ? '处理中...' : '保存副本'}
           </button>
           <button
             className="crop-dialog-button crop-dialog-button-confirm"
-            onClick={handleConfirm}
+            onClick={() => handleConfirm(false)}
             disabled={isProcessing}
           >
-            {isProcessing ? 'Cropping...' : 'Crop'}
+            {isProcessing ? '处理中...' : '保存'}
           </button>
         </div>
       </div>

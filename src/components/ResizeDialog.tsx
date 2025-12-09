@@ -4,7 +4,7 @@ import './ResizeDialog.css';
 interface ResizeDialogProps {
   currentWidth: number;
   currentHeight: number;
-  onConfirm: (width: number, height: number, keepAspectRatio: boolean) => Promise<void>;
+  onConfirm: (width: number, height: number, keepAspectRatio: boolean, saveAsCopy: boolean) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -56,7 +56,7 @@ export function ResizeDialog({
     setError(null);
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (saveAsCopy: boolean) => {
     // Validate inputs
     if (!validateInput(width)) {
       setError('Width must be a positive integer');
@@ -74,7 +74,7 @@ export function ResizeDialog({
     setError(null);
 
     try {
-      await onConfirm(widthNum, heightNum, keepAspectRatio);
+      await onConfirm(widthNum, heightNum, keepAspectRatio, saveAsCopy);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resize image');
       setIsProcessing(false);
@@ -83,7 +83,7 @@ export function ResizeDialog({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleConfirm();
+      handleConfirm(false); // Default to save (overwrite)
     } else if (e.key === 'Escape') {
       onCancel();
     }
@@ -149,14 +149,21 @@ export function ResizeDialog({
             onClick={onCancel}
             disabled={isProcessing}
           >
-            Cancel
+            取消
+          </button>
+          <button
+            className="button button-secondary"
+            onClick={() => handleConfirm(true)}
+            disabled={isProcessing}
+          >
+            {isProcessing ? '处理中...' : '保存副本'}
           </button>
           <button
             className="button button-primary"
-            onClick={handleConfirm}
+            onClick={() => handleConfirm(false)}
             disabled={isProcessing}
           >
-            {isProcessing ? 'Resizing...' : 'Resize'}
+            {isProcessing ? '处理中...' : '保存'}
           </button>
         </div>
       </div>
