@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppState } from '../contexts/AppStateContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
-import { loadImage, openFileDialog, getDirectoryImages } from '../api/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage } from '../api/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
+import { ResizeDialog } from './ResizeDialog';
 import './ImageViewer.css';
 
 /**
@@ -40,6 +41,7 @@ export const ImageViewer: React.FC = () => {
   const [imageScale, setImageScale] = useState<number>(1);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const [showResizeDialog, setShowResizeDialog] = useState<boolean>(false);
 
   /**
    * Calculate adaptive scaling for the image to fit within the container
@@ -130,11 +132,59 @@ export const ImageViewer: React.FC = () => {
   ]);
 
   /**
-   * Placeholder handlers for edit operations (to be implemented in future tasks)
+   * Handle resize operation
+   * Opens the resize dialog (Requirement 2.1)
    */
   const handleResize = useCallback(() => {
-    console.log('Resize operation - to be implemented');
-    // TODO: Implement in task 9
+    if (state.currentImage) {
+      setShowResizeDialog(true);
+    }
+  }, [state.currentImage]);
+
+  /**
+   * Handle resize confirmation
+   * Performs the resize operation and updates the image (Requirements 2.2, 2.3, 2.4, 2.5)
+   */
+  const handleResizeConfirm = useCallback(async (
+    width: number,
+    height: number,
+    keepAspectRatio: boolean
+  ) => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+
+      // Call the resize API
+      const resizedImage = await resizeImage(
+        state.currentImage,
+        width,
+        height,
+        keepAspectRatio
+      );
+
+      // Update state with the resized image
+      setCurrentImage(resizedImage);
+      addToHistory(resizedImage);
+
+      // Close the dialog
+      setShowResizeDialog(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '调整尺寸失败';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError]);
+
+  /**
+   * Handle resize cancellation
+   */
+  const handleResizeCancel = useCallback(() => {
+    setShowResizeDialog(false);
   }, []);
 
   const handleConvert = useCallback(() => {
@@ -288,6 +338,16 @@ export const ImageViewer: React.FC = () => {
             <Icon name="next" size={24} />
           </button>
         </div>
+      )}
+
+      {/* Resize Dialog */}
+      {showResizeDialog && state.currentImage && (
+        <ResizeDialog
+          currentWidth={state.currentImage.width}
+          currentHeight={state.currentImage.height}
+          onConfirm={handleResizeConfirm}
+          onCancel={handleResizeCancel}
+        />
       )}
     </div>
   );

@@ -11,6 +11,9 @@ mod image_loader_test;
 #[cfg(test)]
 mod file_system_test;
 
+#[cfg(test)]
+mod resize_test;
+
 // Re-export commonly used types
 pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor};
 pub use error::{AppError, AppResult};
@@ -285,6 +288,104 @@ async fn save_image(image_data: ImageData, path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Resize an image to the specified dimensions
+/// 
+/// If keep_aspect_ratio is true, the image will be resized to fit within the specified
+/// dimensions while maintaining the original aspect ratio. The actual dimensions may be
+/// smaller than requested to preserve the aspect ratio.
+/// 
+/// If keep_aspect_ratio is false, the image will be resized to exactly the specified dimensions.
+#[tauri::command]
+async fn resize_image(
+    image_data: ImageData,
+    width: u32,
+    height: u32,
+    keep_aspect_ratio: bool,
+) -> Result<ImageData, String> {
+    // Validate input parameters
+    if width == 0 || height == 0 {
+        return Err(AppError::InvalidParameters(
+            "Width and height must be positive integers".to_string()
+        ).into());
+    }
+    
+    // Decode Base64 data
+    let decoded_data = general_purpose::STANDARD
+        .decode(&image_data.data)
+        .map_err(|e| AppError::InvalidImageData(format!("Failed to decode Base64: {}", e)))?;
+    
+    // Load image from decoded data
+    let img = image::load_from_memory(&decoded_data)
+        .map_err(AppError::ImageError)?;
+    
+    // Calculate target dimensions
+    let (target_width, target_height) = if keep_aspect_ratio {
+        calculate_aspect_ratio_dimensions(
+            image_data.width,
+            image_data.height,
+            width,
+            height,
+        )
+    } else {
+        (width, height)
+    };
+    
+    // Resize the image using Lanczos3 filter for high quality
+    let resized = img.resize(target_width, target_height, image::imageops::FilterType::Lanczos3);
+    
+    // Encode to the same format as the original
+    let mut output_buffer = Vec::new();
+    let format = image_data.format.to_image_format()
+        .ok_or_else(|| AppError::UnsupportedFormat(
+            format!("Cannot resize {} format", image_data.format)
+        ))?;
+    
+    resized.write_to(&mut std::io::Cursor::new(&mut output_buffer), format)
+        .map_err(AppError::ImageError)?;
+    
+    // Encode to Base64
+    let base64_data = general_purpose::STANDARD.encode(&output_buffer);
+    
+    // Detect alpha channel in resized image
+    let has_alpha = detect_alpha_channel(&resized);
+    
+    // Return new ImageData with updated dimensions
+    Ok(ImageData {
+        path: image_data.path,
+        width: target_width,
+        height: target_height,
+        format: image_data.format,
+        data: base64_data,
+        has_alpha,
+    })
+}
+
+/// Calculate dimensions that maintain aspect ratio
+/// 
+/// Given original dimensions and target dimensions, calculates the largest size
+/// that fits within the target while maintaining the original aspect ratio.
+fn calculate_aspect_ratio_dimensions(
+    original_width: u32,
+    original_height: u32,
+    target_width: u32,
+    target_height: u32,
+) -> (u32, u32) {
+    let original_ratio = original_width as f64 / original_height as f64;
+    let target_ratio = target_width as f64 / target_height as f64;
+    
+    if original_ratio > target_ratio {
+        // Width is the limiting factor
+        let new_width = target_width;
+        let new_height = (target_width as f64 / original_ratio).round() as u32;
+        (new_width, new_height.max(1))
+    } else {
+        // Height is the limiting factor
+        let new_height = target_height;
+        let new_width = (target_height as f64 * original_ratio).round() as u32;
+        (new_width.max(1), new_height)
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -296,7 +397,8 @@ pub fn run() {
             get_directory_images,
             open_file_dialog,
             save_file_dialog,
-            save_image
+            save_image,
+            resize_image
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

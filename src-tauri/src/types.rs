@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Supported image formats
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -14,6 +15,23 @@ pub enum ImageFormat {
     ICO,
     HEIC,
     AVIF,
+}
+
+impl fmt::Display for ImageFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ImageFormat::PNG => write!(f, "PNG"),
+            ImageFormat::JPEG => write!(f, "JPEG"),
+            ImageFormat::GIF => write!(f, "GIF"),
+            ImageFormat::BMP => write!(f, "BMP"),
+            ImageFormat::WEBP => write!(f, "WEBP"),
+            ImageFormat::SVG => write!(f, "SVG"),
+            ImageFormat::TIFF => write!(f, "TIFF"),
+            ImageFormat::ICO => write!(f, "ICO"),
+            ImageFormat::HEIC => write!(f, "HEIC"),
+            ImageFormat::AVIF => write!(f, "AVIF"),
+        }
+    }
 }
 
 impl ImageFormat {

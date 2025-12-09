@@ -58,3 +58,27 @@ export async function saveFileDialog(defaultName: string): Promise<string | null
 export async function saveImage(imageData: ImageData, path: string): Promise<void> {
   return await invoke<void>('save_image', { imageData, path });
 }
+
+/**
+ * Resize an image to the specified dimensions
+ * 
+ * @param imageData - ImageData object containing the image to resize
+ * @param width - Target width in pixels (must be positive integer)
+ * @param height - Target height in pixels (must be positive integer)
+ * @param keepAspectRatio - If true, maintains aspect ratio (may result in smaller dimensions)
+ * @returns Promise resolving to new ImageData with resized image
+ * @throws Error if parameters are invalid or resize operation fails
+ */
+export async function resizeImage(
+  imageData: ImageData,
+  width: number,
+  height: number,
+  keepAspectRatio: boolean
+): Promise<ImageData> {
+  return await invoke<ImageData>('resize_image', {
+    imageData,
+    width,
+    height,
+    keepAspectRatio,
+  });
+}

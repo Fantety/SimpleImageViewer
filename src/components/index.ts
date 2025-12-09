@@ -3,4 +3,5 @@ export type { IconProps, IconName } from './Icon';
 export { ImageViewer } from './ImageViewer';
 export { Toolbar } from './Toolbar';
 export type { ToolbarProps } from './Toolbar';
+export { ResizeDialog } from './ResizeDialog';
 export * from './icons';
