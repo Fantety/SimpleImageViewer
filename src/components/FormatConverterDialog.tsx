@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import type { ImageFormat, ConversionOptions } from '../types/tauri';
 import './FormatConverterDialog.css';
 
@@ -8,8 +8,8 @@ interface FormatConverterDialogProps {
   onCancel: () => void;
 }
 
-// All supported formats for conversion (excluding SVG and HEIC)
-const SUPPORTED_FORMATS: ImageFormat[] = [
+// All supported formats for conversion (excluding SVG and HEIC which cannot be encoded)
+const AVAILABLE_FORMATS: ImageFormat[] = [
   'PNG',
   'JPEG',
   'GIF',
@@ -28,25 +28,46 @@ export function FormatConverterDialog({
   onConfirm,
   onCancel,
 }: FormatConverterDialogProps) {
-  const [targetFormat, setTargetFormat] = useState<ImageFormat>(
-    currentFormat === 'PNG' ? 'JPEG' : 'PNG'
+  const [selectedFormat, setSelectedFormat] = useState<ImageFormat>(
+    AVAILABLE_FORMATS.includes(currentFormat) ? currentFormat : 'PNG'
   );
-  const [quality, setQuality] = useState<string>('90');
+  const [quality, setQuality] = useState<number>(90);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  const supportsQuality = QUALITY_SUPPORTED_FORMATS.includes(targetFormat);
+  const supportsQuality = QUALITY_SUPPORTED_FORMATS.includes(selectedFormat);
 
-  const validateQuality = (value: string): boolean => {
-    if (!value) return false;
-    const num = parseInt(value, 10);
-    return !isNaN(num) && num >= 1 && num <= 100;
+  const handleFormatChange = (format: ImageFormat) => {
+    setSelectedFormat(format);
+    setError(null);
+  };
+
+  const handleQualityChange = (value: string) => {
+    const numValue = parseInt(value, 10);
+    if (!isNaN(numValue)) {
+      setQuality(Math.max(1, Math.min(100, numValue)));
+    }
+    setError(null);
+  };
+
+  const validateInputs = (): boolean => {
+    if (!selectedFormat) {
+      setError('Please select a target format');
+      return false;
+    }
+
+    if (supportsQuality) {
+      if (quality < 1 || quality > 100) {
+        setError('Quality must be between 1 and 100');
+        return false;
+      }
+    }
+
+    return true;
   };
 
   const handleConfirm = async () => {
-    // Validate quality if applicable
-    if (supportsQuality && !validateQuality(quality)) {
-      setError('Quality must be between 1 and 100');
+    if (!validateInputs()) {
       return;
     }
 
@@ -54,12 +75,11 @@ export function FormatConverterDialog({
     setError(null);
 
     try {
-      const options: ConversionOptions = {};
-      if (supportsQuality) {
-        options.quality = parseInt(quality, 10);
-      }
+      const options: ConversionOptions | undefined = supportsQuality
+        ? { quality }
+        : undefined;
 
-      await onConfirm(targetFormat, options);
+      await onConfirm(selectedFormat, options);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to convert format');
       setIsProcessing(false);
@@ -78,63 +98,74 @@ export function FormatConverterDialog({
     <div className="dialog-overlay" onClick={onCancel}>
       <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
         <h2>Convert Format</h2>
-        
+
         <div className="dialog-body">
           <div className="current-format">
             <p>Current format: <strong>{currentFormat}</strong></p>
           </div>
 
-          <div className="input-group">
-            <label htmlFor="format-select">Target Format</label>
-            <select
-              id="format-select"
-              value={targetFormat}
-              onChange={(e) => {
-                setTargetFormat(e.target.value as ImageFormat);
-                setError(null);
-              }}
-              onKeyDown={handleKeyDown}
-              disabled={isProcessing}
-              autoFocus
-            >
-              {SUPPORTED_FORMATS.map((format) => (
-                <option key={format} value={format}>
+          <div className="format-selection">
+            <label>Target Format</label>
+            <div className="format-grid">
+              {AVAILABLE_FORMATS.map((format) => (
+                <button
+                  key={format}
+                  className={`format-option ${selectedFormat === format ? 'selected' : ''}`}
+                  onClick={() => handleFormatChange(format)}
+                  disabled={isProcessing}
+                  type="button"
+                >
                   {format}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
           {supportsQuality && (
-            <div className="input-group">
+            <div className="quality-control">
               <label htmlFor="quality-input">
-                Quality (1-100)
-                <span className="label-hint">Higher = better quality, larger file</span>
+                Quality ({quality})
+                <span className="quality-hint">Higher = better quality, larger file</span>
               </label>
-              <input
-                id="quality-input"
-                type="number"
-                value={quality}
-                onChange={(e) => {
-                  setQuality(e.target.value);
-                  setError(null);
-                }}
-                onKeyDown={handleKeyDown}
-                min="1"
-                max="100"
-                step="1"
-                disabled={isProcessing}
-              />
+              <div className="quality-input-group">
+                <input
+                  id="quality-input"
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={quality}
+                  onChange={(e) => handleQualityChange(e.target.value)}
+                  disabled={isProcessing}
+                  className="quality-slider"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={quality}
+                  onChange={(e) => handleQualityChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isProcessing}
+                  className="quality-number"
+                />
+              </div>
             </div>
           )}
 
+          {error && <div className="error-message">{error}</div>}
+
           <div className="format-info">
             <p className="info-text">
-              {getFormatDescription(targetFormat)}
+              {selectedFormat === 'PNG' && 'PNG: Lossless compression, supports transparency'}
+              {selectedFormat === 'JPEG' && 'JPEG: Lossy compression, best for photos, no transparency'}
+              {selectedFormat === 'GIF' && 'GIF: Limited colors, supports animation and transparency'}
+              {selectedFormat === 'BMP' && 'BMP: Uncompressed, large file size'}
+              {selectedFormat === 'WEBP' && 'WEBP: Modern format, good compression, supports transparency'}
+              {selectedFormat === 'TIFF' && 'TIFF: High quality, large file size, used in professional imaging'}
+              {selectedFormat === 'ICO' && 'ICO: Icon format, typically small sizes'}
+              {selectedFormat === 'AVIF' && 'AVIF: Modern format, excellent compression, supports transparency'}
             </p>
           </div>
-
-          {error && <div className="error-message">{error}</div>}
         </div>
 
         <div className="dialog-actions">
@@ -156,27 +187,4 @@ export function FormatConverterDialog({
       </div>
     </div>
   );
-}
-
-function getFormatDescription(format: ImageFormat): string {
-  switch (format) {
-    case 'PNG':
-      return 'Lossless compression with transparency support. Best for graphics and screenshots.';
-    case 'JPEG':
-      return 'Lossy compression without transparency. Best for photographs.';
-    case 'GIF':
-      return 'Limited colors with transparency. Best for simple animations.';
-    case 'BMP':
-      return 'Uncompressed format. Large file size but maximum compatibility.';
-    case 'WEBP':
-      return 'Modern format with good compression. Supports both lossy and lossless.';
-    case 'TIFF':
-      return 'High-quality format often used in professional photography.';
-    case 'ICO':
-      return 'Icon format for Windows applications.';
-    case 'AVIF':
-      return 'Next-gen format with excellent compression. May have limited browser support.';
-    default:
-      return '';
-  }
 }
