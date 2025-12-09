@@ -1,3 +1,4 @@
+import React from 'react';
 import { ResizeIcon } from './ResizeIcon';
 import { CropIcon } from './CropIcon';
 import { ConvertIcon } from './ConvertIcon';
@@ -8,7 +9,18 @@ import { PrevIcon } from './PrevIcon';
 import { NextIcon } from './NextIcon';
 import { ThemeLightIcon } from './ThemeLightIcon';
 import { ThemeDarkIcon } from './ThemeDarkIcon';
-import type { IconName } from '../Icon';
+
+export type IconName = 
+  | 'resize'
+  | 'crop'
+  | 'convert'
+  | 'background'
+  | 'save'
+  | 'open'
+  | 'prev'
+  | 'next'
+  | 'theme-light'
+  | 'theme-dark';
 
 export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = {
   'resize': ResizeIcon,

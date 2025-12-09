@@ -1,17 +1,7 @@
 import React from 'react';
-import { icons } from './icons';
+import { icons, type IconName } from './icons/index';
 
-export type IconName = 
-  | 'resize'
-  | 'crop'
-  | 'convert'
-  | 'background'
-  | 'save'
-  | 'open'
-  | 'prev'
-  | 'next'
-  | 'theme-light'
-  | 'theme-dark';
+export type { IconName };
 
 export interface IconProps {
   name: IconName;
