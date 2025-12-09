@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { ImageData } from '../types/tauri';
+import { deepCopyImageData } from '../utils/imageData';
 
 /**
  * Application state interface
@@ -54,27 +55,32 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   /**
    * Set the current image
+   * Creates a deep copy to ensure immutability
    */
   const setCurrentImage = useCallback((image: ImageData | null) => {
     setState(prev => ({
       ...prev,
-      currentImage: image,
+      currentImage: image ? deepCopyImageData(image) : null,
     }));
   }, []);
 
   /**
    * Add an image to the edit history
    * This creates a new history entry and removes any forward history
+   * Creates deep copies to ensure immutability of history
    */
   const addToHistory = useCallback((image: ImageData) => {
     setState(prev => {
+      // Create a deep copy to ensure immutability
+      const imageCopy = deepCopyImageData(image);
+      
       // Remove any forward history when adding a new edit
       const newHistory = prev.imageHistory.slice(0, prev.currentHistoryIndex + 1);
-      newHistory.push(image);
+      newHistory.push(imageCopy);
       
       return {
         ...prev,
-        currentImage: image,
+        currentImage: imageCopy,
         imageHistory: newHistory,
         currentHistoryIndex: newHistory.length - 1,
       };

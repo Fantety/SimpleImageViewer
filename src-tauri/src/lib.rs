@@ -23,6 +23,9 @@ mod crop_test;
 #[cfg(test)]
 mod background_test;
 
+#[cfg(test)]
+mod immutability_test;
+
 // Re-export commonly used types
 pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor};
 pub use error::{AppError, AppResult};

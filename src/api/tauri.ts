@@ -1,9 +1,15 @@
 /**
  * Tauri API wrapper for image operations
+ * 
+ * All edit operations ensure immutability by:
+ * 1. Creating deep copies of input ImageData
+ * 2. Verifying that original ImageData is not mutated
+ * 3. Returning new ImageData objects
  */
 
 import { invoke } from '@tauri-apps/api/core';
 import type { ImageData } from '../types/tauri';
+import { deepCopyImageData, areImageDataEqual } from '../utils/imageData';
 
 /**
  * Load an image from the specified file path
@@ -62,12 +68,15 @@ export async function saveImage(imageData: ImageData, path: string): Promise<voi
 /**
  * Resize an image to the specified dimensions
  * 
+ * Ensures immutability: creates a snapshot of the original ImageData before the operation
+ * and verifies it was not mutated after the operation completes.
+ * 
  * @param imageData - ImageData object containing the image to resize
  * @param width - Target width in pixels (must be positive integer)
  * @param height - Target height in pixels (must be positive integer)
  * @param keepAspectRatio - If true, maintains aspect ratio (may result in smaller dimensions)
  * @returns Promise resolving to new ImageData with resized image
- * @throws Error if parameters are invalid or resize operation fails
+ * @throws Error if parameters are invalid, resize operation fails, or immutability is violated
  */
 export async function resizeImage(
   imageData: ImageData,
@@ -75,16 +84,30 @@ export async function resizeImage(
   height: number,
   keepAspectRatio: boolean
 ): Promise<ImageData> {
-  return await invoke<ImageData>('resize_image', {
+  // Create a snapshot of the original for immutability verification
+  const originalSnapshot = deepCopyImageData(imageData);
+  
+  // Perform the resize operation
+  const result = await invoke<ImageData>('resize_image', {
     imageData,
     width,
     height,
     keepAspectRatio,
   });
+  
+  // Verify that the original was not mutated
+  if (!areImageDataEqual(originalSnapshot, imageData)) {
+    throw new Error('Immutability violation: original ImageData was mutated during resize operation');
+  }
+  
+  return result;
 }
 
 /**
  * Convert image to a different format
+ * 
+ * Ensures immutability: creates a snapshot of the original ImageData before the operation
+ * and verifies it was not mutated after the operation completes.
  * 
  * Supports conversion between: PNG, JPEG, GIF, BMP, WEBP, TIFF, ICO, AVIF
  * Note: SVG and HEIC formats are not supported for conversion
@@ -93,22 +116,36 @@ export async function resizeImage(
  * @param targetFormat - Target format (e.g., 'PNG', 'JPEG', 'WEBP')
  * @param options - Optional conversion options (quality for JPEG/WEBP/AVIF: 1-100)
  * @returns Promise resolving to new ImageData with converted image
- * @throws Error if format is unsupported or conversion fails
+ * @throws Error if format is unsupported, conversion fails, or immutability is violated
  */
 export async function convertFormat(
   imageData: ImageData,
   targetFormat: string,
   options?: { quality?: number }
 ): Promise<ImageData> {
-  return await invoke<ImageData>('convert_format', {
+  // Create a snapshot of the original for immutability verification
+  const originalSnapshot = deepCopyImageData(imageData);
+  
+  // Perform the format conversion operation
+  const result = await invoke<ImageData>('convert_format', {
     imageData,
     targetFormat,
     options: options || null,
   });
+  
+  // Verify that the original was not mutated
+  if (!areImageDataEqual(originalSnapshot, imageData)) {
+    throw new Error('Immutability violation: original ImageData was mutated during format conversion');
+  }
+  
+  return result;
 }
 
 /**
  * Crop an image to the specified region
+ * 
+ * Ensures immutability: creates a snapshot of the original ImageData before the operation
+ * and verifies it was not mutated after the operation completes.
  * 
  * Extracts a rectangular region from the image. If the crop region extends beyond
  * the image boundaries, it will be automatically constrained to fit within the image.
@@ -119,7 +156,7 @@ export async function convertFormat(
  * @param width - Width of the crop region (must be positive integer)
  * @param height - Height of the crop region (must be positive integer)
  * @returns Promise resolving to new ImageData with cropped image
- * @throws Error if parameters are invalid or crop operation fails
+ * @throws Error if parameters are invalid, crop operation fails, or immutability is violated
  */
 export async function cropImage(
   imageData: ImageData,
@@ -128,17 +165,31 @@ export async function cropImage(
   width: number,
   height: number
 ): Promise<ImageData> {
-  return await invoke<ImageData>('crop_image', {
+  // Create a snapshot of the original for immutability verification
+  const originalSnapshot = deepCopyImageData(imageData);
+  
+  // Perform the crop operation
+  const result = await invoke<ImageData>('crop_image', {
     imageData,
     x,
     y,
     width,
     height,
   });
+  
+  // Verify that the original was not mutated
+  if (!areImageDataEqual(originalSnapshot, imageData)) {
+    throw new Error('Immutability violation: original ImageData was mutated during crop operation');
+  }
+  
+  return result;
 }
 
 /**
  * Set background color for transparent images
+ * 
+ * Ensures immutability: creates a snapshot of the original ImageData before the operation
+ * and verifies it was not mutated after the operation completes.
  * 
  * Replaces transparent pixels with the specified RGB color.
  * Only works on images with an alpha channel (hasAlpha = true).
@@ -148,7 +199,7 @@ export async function cropImage(
  * @param g - Green component (0-255)
  * @param b - Blue component (0-255)
  * @returns Promise resolving to new ImageData with background applied
- * @throws Error if image doesn't have transparency or operation fails
+ * @throws Error if image doesn't have transparency, operation fails, or immutability is violated
  */
 export async function setBackground(
   imageData: ImageData,
@@ -156,10 +207,21 @@ export async function setBackground(
   g: number,
   b: number
 ): Promise<ImageData> {
-  return await invoke<ImageData>('set_background', {
+  // Create a snapshot of the original for immutability verification
+  const originalSnapshot = deepCopyImageData(imageData);
+  
+  // Perform the set background operation
+  const result = await invoke<ImageData>('set_background', {
     imageData,
     r,
     g,
     b,
   });
+  
+  // Verify that the original was not mutated
+  if (!areImageDataEqual(originalSnapshot, imageData)) {
+    throw new Error('Immutability violation: original ImageData was mutated during set background operation');
+  }
+  
+  return result;
 }
