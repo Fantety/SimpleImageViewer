@@ -27,3 +27,6 @@ image = { version = "0.25", features = ["png", "jpeg", "gif", "bmp", "webp", "ti
 base64 = "0.22"
 thiserror = "1.0"
 
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
