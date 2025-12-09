@@ -1,3 +1,14 @@
+// Module declarations
+pub mod types;
+pub mod error;
+
+#[cfg(test)]
+mod error_test;
+
+// Re-export commonly used types
+pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor};
+pub use error::{AppError, AppResult};
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -8,6 +19,7 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![greet])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
