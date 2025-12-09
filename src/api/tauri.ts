@@ -136,3 +136,30 @@ export async function cropImage(
     height,
   });
 }
+
+/**
+ * Set background color for transparent images
+ * 
+ * Replaces transparent pixels with the specified RGB color.
+ * Only works on images with an alpha channel (hasAlpha = true).
+ * 
+ * @param imageData - ImageData object containing the image (must have alpha channel)
+ * @param r - Red component (0-255)
+ * @param g - Green component (0-255)
+ * @param b - Blue component (0-255)
+ * @returns Promise resolving to new ImageData with background applied
+ * @throws Error if image doesn't have transparency or operation fails
+ */
+export async function setBackground(
+  imageData: ImageData,
+  r: number,
+  g: number,
+  b: number
+): Promise<ImageData> {
+  return await invoke<ImageData>('set_background', {
+    imageData,
+    r,
+    g,
+    b,
+  });
+}

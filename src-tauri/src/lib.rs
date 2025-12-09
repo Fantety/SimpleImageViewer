@@ -20,6 +20,9 @@ mod format_conversion_test;
 #[cfg(test)]
 mod crop_test;
 
+#[cfg(test)]
+mod background_test;
+
 // Re-export commonly used types
 pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor};
 pub use error::{AppError, AppResult};
@@ -614,6 +617,89 @@ async fn crop_image(
     })
 }
 
+/// Set background color for transparent images
+/// 
+/// Replaces transparent pixels with the specified RGB color.
+/// Only works on images with an alpha channel (hasAlpha = true).
+/// 
+/// @param image_data - The image to process (must have alpha channel)
+/// @param r - Red component (0-255)
+/// @param g - Green component (0-255)
+/// @param b - Blue component (0-255)
+/// @returns New ImageData with background applied to transparent areas
+#[tauri::command]
+async fn set_background(
+    image_data: ImageData,
+    r: u8,
+    g: u8,
+    b: u8,
+) -> Result<ImageData, String> {
+    // Validate that the image has an alpha channel
+    if !image_data.has_alpha {
+        return Err(AppError::InvalidParameters(
+            "Image does not have transparency. Background setting is only applicable to transparent images.".to_string()
+        ).into());
+    }
+    
+    // Decode Base64 data
+    let decoded_data = general_purpose::STANDARD
+        .decode(&image_data.data)
+        .map_err(|e| AppError::InvalidImageData(format!("Failed to decode Base64: {}", e)))?;
+    
+    // Load image from decoded data
+    let img = image::load_from_memory(&decoded_data)
+        .map_err(AppError::ImageError)?;
+    
+    // Convert to RGBA8 for processing
+    let mut rgba_img = img.to_rgba8();
+    
+    // Apply background color to transparent pixels
+    for pixel in rgba_img.pixels_mut() {
+        let alpha = pixel.0[3];
+        
+        if alpha < 255 {
+            // Blend the background color with the existing pixel based on alpha
+            let alpha_f = alpha as f32 / 255.0;
+            let inv_alpha = 1.0 - alpha_f;
+            
+            // Alpha blending: result = foreground * alpha + background * (1 - alpha)
+            pixel.0[0] = ((pixel.0[0] as f32 * alpha_f) + (r as f32 * inv_alpha)) as u8;
+            pixel.0[1] = ((pixel.0[1] as f32 * alpha_f) + (g as f32 * inv_alpha)) as u8;
+            pixel.0[2] = ((pixel.0[2] as f32 * alpha_f) + (b as f32 * inv_alpha)) as u8;
+            pixel.0[3] = 255; // Set alpha to fully opaque
+        }
+    }
+    
+    // Convert back to DynamicImage
+    let result_img = DynamicImage::ImageRgba8(rgba_img);
+    
+    // Encode to the same format as the original
+    let mut output_buffer = Vec::new();
+    let format = image_data.format.to_image_format()
+        .ok_or_else(|| AppError::UnsupportedFormat(
+            format!("Cannot process {} format", image_data.format)
+        ))?;
+    
+    result_img.write_to(&mut std::io::Cursor::new(&mut output_buffer), format)
+        .map_err(AppError::ImageError)?;
+    
+    // Encode to Base64
+    let base64_data = general_purpose::STANDARD.encode(&output_buffer);
+    
+    // After applying background, the image no longer has transparency
+    let has_alpha = false;
+    
+    // Return new ImageData with background applied
+    Ok(ImageData {
+        path: image_data.path,
+        width: image_data.width,
+        height: image_data.height,
+        format: image_data.format,
+        data: base64_data,
+        has_alpha,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -628,7 +714,8 @@ pub fn run() {
             save_image,
             resize_image,
             convert_format,
-            crop_image
+            crop_image,
+            set_background
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

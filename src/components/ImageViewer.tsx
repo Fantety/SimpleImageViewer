@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppState } from '../contexts/AppStateContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage } from '../api/tauri';
-import type { ImageFormat, ConversionOptions } from '../types/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground } from '../api/tauri';
+import type { ImageFormat, ConversionOptions, RGBColor } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
 import { ResizeDialog } from './ResizeDialog';
 import { FormatConverterDialog } from './FormatConverterDialog';
 import { CropDialog } from './CropDialog';
+import { BackgroundSetterDialog } from './BackgroundSetterDialog';
 import './ImageViewer.css';
 
 /**
@@ -47,6 +48,7 @@ export const ImageViewer: React.FC = () => {
   const [showResizeDialog, setShowResizeDialog] = useState<boolean>(false);
   const [showFormatConverterDialog, setShowFormatConverterDialog] = useState<boolean>(false);
   const [showCropDialog, setShowCropDialog] = useState<boolean>(false);
+  const [showBackgroundSetterDialog, setShowBackgroundSetterDialog] = useState<boolean>(false);
 
   /**
    * Calculate adaptive scaling for the image to fit within the container
@@ -304,9 +306,56 @@ export const ImageViewer: React.FC = () => {
     setShowCropDialog(false);
   }, []);
 
+  /**
+   * Handle set background operation
+   * Opens the background setter dialog (Requirements 5.1, 5.2)
+   */
   const handleSetBackground = useCallback(() => {
-    console.log('Set background operation - to be implemented');
-    // TODO: Implement in task 12
+    if (state.currentImage) {
+      setShowBackgroundSetterDialog(true);
+    }
+  }, [state.currentImage]);
+
+  /**
+   * Handle background setting confirmation
+   * Applies the background color to transparent areas (Requirements 5.3, 5.4, 5.5)
+   */
+  const handleSetBackgroundConfirm = useCallback(async (color: RGBColor) => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+
+      // Call the set background API
+      const imageWithBackground = await setBackground(
+        state.currentImage,
+        color.r,
+        color.g,
+        color.b
+      );
+
+      // Update state with the image with background applied
+      setCurrentImage(imageWithBackground);
+      addToHistory(imageWithBackground);
+
+      // Close the dialog
+      setShowBackgroundSetterDialog(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '设置背景失败';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError]);
+
+  /**
+   * Handle background setter cancellation
+   */
+  const handleSetBackgroundCancel = useCallback(() => {
+    setShowBackgroundSetterDialog(false);
   }, []);
 
   const handleSave = useCallback(() => {
@@ -472,6 +521,15 @@ export const ImageViewer: React.FC = () => {
           imageData={state.currentImage}
           onConfirm={handleCropConfirm}
           onCancel={handleCropCancel}
+        />
+      )}
+
+      {/* Background Setter Dialog */}
+      {showBackgroundSetterDialog && state.currentImage && (
+        <BackgroundSetterDialog
+          hasAlpha={state.currentImage.hasAlpha}
+          onConfirm={handleSetBackgroundConfirm}
+          onCancel={handleSetBackgroundCancel}
         />
       )}
     </div>

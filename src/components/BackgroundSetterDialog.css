@@ -1,0 +1,234 @@
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background-color: var(--color-surface);
+  border-radius: 8px;
+  padding: 24px;
+  min-width: 400px;
+  max-width: 500px;
+  box-shadow: var(--shadow-lg);
+}
+
+.dialog-content h2 {
+  margin: 0 0 20px 0;
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.dialog-body {
+  margin-bottom: 24px;
+}
+
+.info-message {
+  margin-bottom: 20px;
+  padding: 12px;
+  background-color: rgba(33, 150, 243, 0.1);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+}
+
+.info-message p {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.warning-message {
+  margin-bottom: 20px;
+  padding: 12px;
+  background-color: rgba(255, 152, 0, 0.1);
+  border: 1px solid var(--color-warning);
+  border-radius: 4px;
+}
+
+.warning-message p {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.color-preview-section {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.color-preview-label {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.color-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  border: 2px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.color-preview:hover {
+  transform: scale(1.05);
+}
+
+.input-group {
+  margin-bottom: 20px;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.color-input-wrapper {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.color-picker {
+  width: 60px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: var(--color-background);
+}
+
+.color-picker:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.color-text-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-family: monospace;
+}
+
+.color-text-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.color-text-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.preset-colors-section {
+  margin-bottom: 16px;
+}
+
+.preset-colors-section label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.preset-colors {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.preset-color-button {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.preset-color-button:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md);
+}
+
+.preset-color-button.active {
+  border-color: var(--color-accent);
+  border-width: 3px;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.preset-color-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error-message {
+  padding: 10px 12px;
+  background-color: rgba(211, 47, 47, 0.1);
+  border: 1px solid var(--color-error);
+  border-radius: 4px;
+  color: var(--color-error);
+  font-size: 14px;
+  margin-top: 12px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button-secondary {
+  background-color: var(--color-button-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.button-secondary:hover:not(:disabled) {
+  background-color: var(--color-button-hover);
+}
+
+.button-primary {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+.button-primary:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}

@@ -6,4 +6,5 @@ export type { ToolbarProps } from './Toolbar';
 export { ResizeDialog } from './ResizeDialog';
 export { FormatConverterDialog } from './FormatConverterDialog';
 export { CropDialog } from './CropDialog';
+export { BackgroundSetterDialog } from './BackgroundSetterDialog';
 export * from './icons';
