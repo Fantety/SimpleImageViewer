@@ -38,9 +38,8 @@ export function useImageZoom(options: UseImageZoomOptions = {}): UseImageZoomRet
     const target = e.currentTarget;
     if (!target) return;
     
-    const rect = target.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    // Detect if this is a pinch-zoom gesture (ctrlKey is set for trackpad pinch)
+    const isPinchZoom = e.ctrlKey;
     
     // Determine zoom direction and amount
     const delta = -e.deltaY;
@@ -49,8 +48,11 @@ export function useImageZoom(options: UseImageZoomOptions = {}): UseImageZoomRet
     setZoom((prevZoom) => {
       const newZoom = Math.max(minZoom, Math.min(maxZoom, prevZoom + zoomChange));
       
-      // Adjust position to zoom towards mouse cursor
-      if (newZoom !== prevZoom) {
+      // Only adjust position for mouse wheel zoom (not pinch-zoom)
+      if (newZoom !== prevZoom && !isPinchZoom) {
+        const rect = target.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
         const zoomRatio = newZoom / prevZoom;
         
         setPosition((prevPos) => ({
