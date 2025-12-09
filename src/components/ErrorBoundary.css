@@ -1,0 +1,100 @@
+.error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  min-height: 200px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.error-boundary-content {
+  max-width: 600px;
+  text-align: center;
+}
+
+.error-boundary-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.error-boundary-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.error-boundary-message {
+  font-size: 1rem;
+  color: var(--color-text-secondary);
+  margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
+.error-boundary-details {
+  margin: 1.5rem 0;
+  text-align: left;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1rem;
+}
+
+.error-boundary-details summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  user-select: none;
+  padding: 0.25rem;
+}
+
+.error-boundary-details summary:hover {
+  color: var(--color-accent);
+}
+
+.error-boundary-error-info {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+
+.error-boundary-error-info p {
+  margin: 0.5rem 0 0.25rem 0;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.error-boundary-error-info pre {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-error);
+  margin: 0.25rem 0 1rem 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-boundary-retry {
+  background-color: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.error-boundary-retry:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.error-boundary-retry:active {
+  transform: translateY(1px);
+}

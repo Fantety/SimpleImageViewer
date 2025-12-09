@@ -9,3 +9,14 @@ export {
   createImmutableSnapshot,
   validateEditImmutability,
 } from './imageData';
+
+export {
+  errorLogger,
+  logError,
+  logWarning,
+  logInfo,
+  logCritical,
+  ErrorSeverity,
+} from './errorLogger';
+
+export type { ErrorLogEntry } from './errorLogger';

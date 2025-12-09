@@ -9,6 +9,8 @@ import { ResizeDialog } from './ResizeDialog';
 import { FormatConverterDialog } from './FormatConverterDialog';
 import { CropDialog } from './CropDialog';
 import { BackgroundSetterDialog } from './BackgroundSetterDialog';
+import { ErrorBoundary } from './ErrorBoundary';
+import { logError } from '../utils/errorLogger';
 import './ImageViewer.css';
 
 /**
@@ -124,6 +126,8 @@ export const ImageViewer: React.FC = () => {
     } catch (err) {
       // Handle loading errors (Requirement 1.3)
       const errorMessage = err instanceof Error ? err.message : '加载图片失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      logError('Failed to load image', error, 'ImageViewer', { operation: 'openFile' });
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -181,6 +185,8 @@ export const ImageViewer: React.FC = () => {
       setShowResizeDialog(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '调整尺寸失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      logError('Failed to resize image', error, 'ImageViewer', { operation: 'resize', width, height, keepAspectRatio });
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -235,6 +241,8 @@ export const ImageViewer: React.FC = () => {
       setShowFormatConverterDialog(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '格式转换失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      logError('Failed to convert format', error, 'ImageViewer', { operation: 'convert', targetFormat, options });
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -293,6 +301,8 @@ export const ImageViewer: React.FC = () => {
       setShowCropDialog(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '裁剪失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      logError('Failed to crop image', error, 'ImageViewer', { operation: 'crop', x, y, width, height });
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -345,6 +355,8 @@ export const ImageViewer: React.FC = () => {
       setShowBackgroundSetterDialog(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '设置背景失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      logError('Failed to set background', error, 'ImageViewer', { operation: 'setBackground', color });
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -390,15 +402,20 @@ export const ImageViewer: React.FC = () => {
   return (
     <div className="image-viewer">
       {/* Toolbar with edit operations and theme toggle */}
-      <Toolbar
-        onResize={handleResize}
-        onConvert={handleConvert}
-        onCrop={handleCrop}
-        onSetBackground={handleSetBackground}
-        onSave={handleSave}
-        disabled={!state.currentImage || state.isLoading}
-        hasAlpha={state.currentImage?.hasAlpha || false}
-      />
+      <ErrorBoundary
+        isolationName="Toolbar"
+        onError={(error) => logError("Toolbar error", error, "Toolbar")}
+      >
+        <Toolbar
+          onResize={handleResize}
+          onConvert={handleConvert}
+          onCrop={handleCrop}
+          onSetBackground={handleSetBackground}
+          onSave={handleSave}
+          disabled={!state.currentImage || state.isLoading}
+          hasAlpha={state.currentImage?.hasAlpha || false}
+        />
+      </ErrorBoundary>
 
       {/* Header with open button and image info */}
       <div className="image-viewer-header">
@@ -498,39 +515,71 @@ export const ImageViewer: React.FC = () => {
 
       {/* Resize Dialog */}
       {showResizeDialog && state.currentImage && (
-        <ResizeDialog
-          currentWidth={state.currentImage.width}
-          currentHeight={state.currentImage.height}
-          onConfirm={handleResizeConfirm}
-          onCancel={handleResizeCancel}
-        />
+        <ErrorBoundary
+          isolationName="ResizeDialog"
+          onError={(error) => {
+            logError("Resize dialog error", error, "ResizeDialog");
+            setShowResizeDialog(false);
+          }}
+        >
+          <ResizeDialog
+            currentWidth={state.currentImage.width}
+            currentHeight={state.currentImage.height}
+            onConfirm={handleResizeConfirm}
+            onCancel={handleResizeCancel}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Format Converter Dialog */}
       {showFormatConverterDialog && state.currentImage && (
-        <FormatConverterDialog
-          currentFormat={state.currentImage.format}
-          onConfirm={handleConvertConfirm}
-          onCancel={handleConvertCancel}
-        />
+        <ErrorBoundary
+          isolationName="FormatConverterDialog"
+          onError={(error) => {
+            logError("Format converter dialog error", error, "FormatConverterDialog");
+            setShowFormatConverterDialog(false);
+          }}
+        >
+          <FormatConverterDialog
+            currentFormat={state.currentImage.format}
+            onConfirm={handleConvertConfirm}
+            onCancel={handleConvertCancel}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Crop Dialog */}
       {showCropDialog && state.currentImage && (
-        <CropDialog
-          imageData={state.currentImage}
-          onConfirm={handleCropConfirm}
-          onCancel={handleCropCancel}
-        />
+        <ErrorBoundary
+          isolationName="CropDialog"
+          onError={(error) => {
+            logError("Crop dialog error", error, "CropDialog");
+            setShowCropDialog(false);
+          }}
+        >
+          <CropDialog
+            imageData={state.currentImage}
+            onConfirm={handleCropConfirm}
+            onCancel={handleCropCancel}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Background Setter Dialog */}
       {showBackgroundSetterDialog && state.currentImage && (
-        <BackgroundSetterDialog
-          hasAlpha={state.currentImage.hasAlpha}
-          onConfirm={handleSetBackgroundConfirm}
-          onCancel={handleSetBackgroundCancel}
-        />
+        <ErrorBoundary
+          isolationName="BackgroundSetterDialog"
+          onError={(error) => {
+            logError("Background setter dialog error", error, "BackgroundSetterDialog");
+            setShowBackgroundSetterDialog(false);
+          }}
+        >
+          <BackgroundSetterDialog
+            hasAlpha={state.currentImage.hasAlpha}
+            onConfirm={handleSetBackgroundConfirm}
+            onCancel={handleSetBackgroundCancel}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );
