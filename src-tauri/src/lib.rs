@@ -8,6 +8,9 @@ mod error_test;
 #[cfg(test)]
 mod image_loader_test;
 
+#[cfg(test)]
+mod file_system_test;
+
 // Re-export commonly used types
 pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor};
 pub use error::{AppError, AppResult};
@@ -162,12 +165,139 @@ fn detect_image_format(path: &str, extension: &str) -> Result<ImageFormat, AppEr
     Ok(format)
 }
 
+/// Get list of image files in a directory
+/// 
+/// Returns a list of file paths for all supported image formats in the specified directory
+#[tauri::command]
+async fn get_directory_images(dir_path: String) -> Result<Vec<String>, String> {
+    let path = Path::new(&dir_path);
+    
+    // Validate directory exists
+    if !path.exists() {
+        return Err(AppError::FileNotFound(dir_path).into());
+    }
+    
+    if !path.is_dir() {
+        return Err(AppError::InvalidParameters(
+            "Path is not a directory".to_string()
+        ).into());
+    }
+    
+    // Read directory entries
+    let entries = fs::read_dir(path)
+        .map_err(AppError::IoError)?;
+    
+    // Supported image extensions
+    let supported_extensions = [
+        "png", "jpg", "jpeg", "gif", "bmp", "webp", 
+        "svg", "tiff", "tif", "ico", "heic", "heif", "avif"
+    ];
+    
+    // Filter and collect image files
+    let mut image_files: Vec<String> = entries
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            entry.path().is_file()
+        })
+        .filter(|entry| {
+            entry.path()
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| supported_extensions.contains(&ext.to_lowercase().as_str()))
+                .unwrap_or(false)
+        })
+        .filter_map(|entry| {
+            entry.path().to_str().map(|s| s.to_string())
+        })
+        .collect();
+    
+    // Sort alphabetically for consistent ordering
+    image_files.sort();
+    
+    Ok(image_files)
+}
+
+/// Open file dialog to select an image file
+/// 
+/// Returns the selected file path, or None if the user cancelled
+#[tauri::command]
+async fn open_file_dialog(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    
+    let file_path = app.dialog()
+        .file()
+        .add_filter("Images", &["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff", "tif", "ico", "heic", "heif", "avif"])
+        .blocking_pick_file();
+    
+    Ok(file_path.and_then(|path| {
+        path.as_path().map(|p| p.to_string_lossy().to_string())
+    }))
+}
+
+/// Open save file dialog
+/// 
+/// Returns the selected save path, or None if the user cancelled
+#[tauri::command]
+async fn save_file_dialog(app: tauri::AppHandle, default_name: String) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    
+    let file_path = app.dialog()
+        .file()
+        .add_filter("Images", &["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff", "tif", "ico", "avif"])
+        .set_file_name(&default_name)
+        .blocking_save_file();
+    
+    Ok(file_path.and_then(|path| {
+        path.as_path().map(|p| p.to_string_lossy().to_string())
+    }))
+}
+
+/// Save image data to a file
+/// 
+/// Decodes the Base64 image data and writes it to the specified path
+#[tauri::command]
+async fn save_image(image_data: ImageData, path: String) -> Result<(), String> {
+    // Decode Base64 data
+    let decoded_data = general_purpose::STANDARD
+        .decode(&image_data.data)
+        .map_err(|e| AppError::InvalidImageData(format!("Failed to decode Base64: {}", e)))?;
+    
+    // Validate the parent directory exists
+    let path_obj = Path::new(&path);
+    if let Some(parent) = path_obj.parent() {
+        if !parent.exists() {
+            return Err(AppError::FileNotFound(
+                format!("Directory does not exist: {}", parent.display())
+            ).into());
+        }
+    }
+    
+    // Write to file
+    fs::write(&path, decoded_data)
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                AppError::PermissionDenied(format!("Cannot write to: {}", path))
+            } else {
+                AppError::SaveFailed(format!("Failed to save image: {}", e))
+            }
+        })?;
+    
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![greet, load_image])
+        .invoke_handler(tauri::generate_handler![
+            greet, 
+            load_image,
+            get_directory_images,
+            open_file_dialog,
+            save_file_dialog,
+            save_image
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
