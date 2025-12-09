@@ -257,3 +257,81 @@ export async function rotateImage(
   
   return result;
 }
+
+// ============================================================================
+// Favorites Management API
+// ============================================================================
+
+export interface FavoriteImage {
+  path: string;
+  tags: string[];
+  added_at: number;
+}
+
+/**
+ * Get all favorite images
+ * 
+ * @returns Promise resolving to array of favorite images
+ */
+export async function getAllFavorites(): Promise<FavoriteImage[]> {
+  return await invoke<FavoriteImage[]>('get_all_favorites');
+}
+
+/**
+ * Add an image to favorites with tags
+ * 
+ * @param path - Image file path
+ * @param tags - Array of tags to associate with the image
+ */
+export async function addFavorite(path: string, tags: string[]): Promise<void> {
+  return await invoke<void>('add_favorite', { path, tags });
+}
+
+/**
+ * Remove an image from favorites
+ * 
+ * @param path - Image file path
+ * @returns Promise resolving to true if removed, false if not found
+ */
+export async function removeFavorite(path: string): Promise<boolean> {
+  return await invoke<boolean>('remove_favorite', { path });
+}
+
+/**
+ * Check if an image is favorited
+ * 
+ * @param path - Image file path
+ * @returns Promise resolving to true if favorited, false otherwise
+ */
+export async function isFavorite(path: string): Promise<boolean> {
+  return await invoke<boolean>('is_favorite', { path });
+}
+
+/**
+ * Search favorites by tags
+ * 
+ * @param tags - Array of tags to search for
+ * @returns Promise resolving to array of matching favorite images
+ */
+export async function searchFavoritesByTags(tags: string[]): Promise<FavoriteImage[]> {
+  return await invoke<FavoriteImage[]>('search_favorites_by_tags', { tags });
+}
+
+/**
+ * Get all unique tags from favorites
+ * 
+ * @returns Promise resolving to array of unique tags
+ */
+export async function getAllTags(): Promise<string[]> {
+  return await invoke<string[]>('get_all_tags');
+}
+
+/**
+ * Check if a file exists
+ * 
+ * @param path - File path to check
+ * @returns Promise resolving to true if file exists, false otherwise
+ */
+export async function fileExists(path: string): Promise<boolean> {
+  return await invoke<boolean>('file_exists', { path });
+}

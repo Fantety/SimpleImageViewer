@@ -14,6 +14,9 @@ import { ZoomOutIcon } from './ZoomOutIcon';
 import { ResetZoomIcon } from './ResetZoomIcon';
 import { RotateLeftIcon } from './RotateLeftIcon';
 import { RotateRightIcon } from './RotateRightIcon';
+import { FavoriteIcon } from './FavoriteIcon';
+import { TagIcon } from './TagIcon';
+import { SearchIcon } from './SearchIcon';
 
 export type IconName = 
   | 'resize'
@@ -30,7 +33,10 @@ export type IconName =
   | 'minus'
   | 'reset'
   | 'rotate-left'
-  | 'rotate-right';
+  | 'rotate-right'
+  | 'favorite'
+  | 'tag'
+  | 'search';
 
 export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = {
   'resize': ResizeIcon,
@@ -48,6 +54,9 @@ export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = 
   'reset': ResetZoomIcon,
   'rotate-left': RotateLeftIcon,
   'rotate-right': RotateRightIcon,
+  'favorite': FavoriteIcon,
+  'tag': TagIcon,
+  'search': SearchIcon,
 };
 
 // Export individual icons for direct use if needed
@@ -67,4 +76,7 @@ export {
   ResetZoomIcon,
   RotateLeftIcon,
   RotateRightIcon,
+  FavoriteIcon,
+  TagIcon,
+  SearchIcon,
 };

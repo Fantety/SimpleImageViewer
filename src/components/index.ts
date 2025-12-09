@@ -11,4 +11,6 @@ export { ConfirmDialog } from './ConfirmDialog';
 export { ErrorBoundary } from './ErrorBoundary';
 export { Notification, NotificationContainer } from './Notification';
 export type { NotificationProps, NotificationData, NotificationType } from './Notification';
+export { FavoritesSidebar } from './FavoritesSidebar';
+export { AddFavoriteDialog } from './AddFavoriteDialog';
 export * from './icons';

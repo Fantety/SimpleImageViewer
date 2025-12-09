@@ -105,6 +105,19 @@
   display: none;
 }
 
+.toolbar-button-favorite-active {
+  color: #e74c3c;
+}
+
+.toolbar-button-favorite-active svg {
+  fill: #e74c3c;
+}
+
+.toolbar-favorites-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
 /* Divider */
 .toolbar-divider {
   width: 1px;

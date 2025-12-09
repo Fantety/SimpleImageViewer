@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from './Icon';
+import { FavoriteIcon } from './icons';
 import { useTheme } from '../contexts/ThemeContext';
 import './Toolbar.css';
 
@@ -26,8 +27,11 @@ export interface ToolbarProps {
   onSetBackground: () => void;
   onRotateLeft: () => void;
   onRotateRight: () => void;
+  onToggleFavorite: () => void;
+  onOpenFavorites: () => void;
   disabled: boolean;
   hasAlpha?: boolean; // For conditional background button enabling
+  isFavorite?: boolean; // Whether current image is favorited
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -37,8 +41,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onSetBackground,
   onRotateLeft,
   onRotateRight,
+  onToggleFavorite,
+  onOpenFavorites,
   disabled,
   hasAlpha = false,
+  isFavorite = false,
 }) => {
   const { theme, toggleTheme } = useTheme();
 
@@ -121,6 +128,27 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </div>
 
       <div className="toolbar-section toolbar-settings">
+        <button
+          className={`toolbar-button toolbar-button-icon-only ${isFavorite ? 'toolbar-button-favorite-active' : ''}`}
+          onClick={onToggleFavorite}
+          disabled={disabled}
+          title={isFavorite ? '取消收藏' : '添加到收藏夹'}
+          aria-label={isFavorite ? '取消收藏' : '添加到收藏夹'}
+        >
+          <FavoriteIcon size={20} filled={isFavorite} />
+        </button>
+
+        <button
+          className="toolbar-button toolbar-button-icon-only"
+          onClick={onOpenFavorites}
+          title="打开收藏夹"
+          aria-label="打开收藏夹"
+        >
+          <span className="toolbar-favorites-icon">☰</span>
+        </button>
+
+        <div className="toolbar-divider" />
+
         <button
           className="toolbar-button toolbar-button-icon-only"
           onClick={toggleTheme}

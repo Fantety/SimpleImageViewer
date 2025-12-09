@@ -4,7 +4,7 @@ import { useAppState } from '../contexts/AppStateContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
 import { useImageZoom } from '../hooks/useImageZoom';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog } from '../api/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites } from '../api/tauri';
 import type { ImageFormat, ConversionOptions, RGBColor } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
@@ -12,6 +12,8 @@ import { ResizeDialog } from './ResizeDialog';
 import { FormatConverterDialog } from './FormatConverterDialog';
 import { CropDialog } from './CropDialog';
 import { BackgroundSetterDialog } from './BackgroundSetterDialog';
+import { FavoritesSidebar } from './FavoritesSidebar';
+import { AddFavoriteDialog } from './AddFavoriteDialog';
 import { ErrorBoundary } from './ErrorBoundary';
 import { logError } from '../utils/errorLogger';
 import './ImageViewer.css';
@@ -73,6 +75,9 @@ export const ImageViewer: React.FC = () => {
   const [showFormatConverterDialog, setShowFormatConverterDialog] = useState<boolean>(false);
   const [showCropDialog, setShowCropDialog] = useState<boolean>(false);
   const [showBackgroundSetterDialog, setShowBackgroundSetterDialog] = useState<boolean>(false);
+  const [showFavoritesSidebar, setShowFavoritesSidebar] = useState<boolean>(false);
+  const [showAddFavoriteDialog, setShowAddFavoriteDialog] = useState<boolean>(false);
+  const [isCurrentImageFavorite, setIsCurrentImageFavorite] = useState<boolean>(false);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [operationName, setOperationName] = useState<string>('');
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -715,7 +720,91 @@ export const ImageViewer: React.FC = () => {
     }
   }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError, showSuccess, showError]);
 
+  /**
+   * Check if current image is favorited
+   */
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
+      if (state.currentImage) {
+        try {
+          const favorited = await isFavorite(state.currentImage.path);
+          setIsCurrentImageFavorite(favorited);
+        } catch (error) {
+          console.error('Failed to check favorite status:', error);
+        }
+      } else {
+        setIsCurrentImageFavorite(false);
+      }
+    };
 
+    checkFavoriteStatus();
+  }, [state.currentImage]);
+
+  /**
+   * Handle toggle favorite
+   */
+  const handleToggleFavorite = useCallback(async () => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    if (isCurrentImageFavorite) {
+      // Remove from favorites
+      try {
+        await removeFavorite(state.currentImage.path);
+        setIsCurrentImageFavorite(false);
+        showSuccess('取消收藏', '已从收藏夹中移除');
+      } catch (error) {
+        console.error('Failed to remove favorite:', error);
+        showError('操作失败', '取消收藏失败');
+      }
+    } else {
+      // Show add favorite dialog
+      setShowAddFavoriteDialog(true);
+    }
+  }, [state.currentImage, isCurrentImageFavorite, showSuccess, showError]);
+
+  /**
+   * Handle open favorites sidebar
+   */
+  const handleOpenFavorites = useCallback(() => {
+    setShowFavoritesSidebar(true);
+  }, []);
+
+  /**
+   * Handle select image from favorites
+   */
+  const handleSelectFavoriteImage = useCallback(async (path: string) => {
+    setShowFavoritesSidebar(false);
+    await loadImageFromPath(path);
+  }, [loadImageFromPath]);
+
+  /**
+   * Handle add favorite success
+   */
+  const handleAddFavoriteSuccess = useCallback(() => {
+    setIsCurrentImageFavorite(true);
+    showSuccess('添加成功', '已添加到收藏夹');
+  }, [showSuccess]);
+
+  /**
+   * Load favorites on startup
+   */
+  useEffect(() => {
+    const loadInitialFavorites = async () => {
+      try {
+        const favorites = await getAllFavorites();
+        if (favorites.length > 0 && !state.currentImage) {
+          // Load the first favorite image
+          await loadImageFromPath(favorites[0].path, false);
+        }
+      } catch (error) {
+        console.error('Failed to load initial favorites:', error);
+      }
+    };
+
+    loadInitialFavorites();
+  }, []); // Only run once on mount
 
   /**
    * Handle keyboard shortcuts (Requirement 8.5)
@@ -907,8 +996,11 @@ export const ImageViewer: React.FC = () => {
           onSetBackground={handleSetBackground}
           onRotateLeft={handleRotateLeft}
           onRotateRight={handleRotateRight}
+          onToggleFavorite={handleToggleFavorite}
+          onOpenFavorites={handleOpenFavorites}
           disabled={!state.currentImage || state.isLoading}
           hasAlpha={state.currentImage?.hasAlpha || false}
+          isFavorite={isCurrentImageFavorite}
         />
       </ErrorBoundary>
 
@@ -1122,6 +1214,24 @@ export const ImageViewer: React.FC = () => {
             onCancel={handleSetBackgroundCancel}
           />
         </ErrorBoundary>
+      )}
+
+      {/* Favorites Sidebar */}
+      <FavoritesSidebar
+        isOpen={showFavoritesSidebar}
+        onClose={() => setShowFavoritesSidebar(false)}
+        onSelectImage={handleSelectFavoriteImage}
+        currentImagePath={state.currentImage?.path}
+      />
+
+      {/* Add Favorite Dialog */}
+      {showAddFavoriteDialog && state.currentImage && (
+        <AddFavoriteDialog
+          isOpen={showAddFavoriteDialog}
+          imagePath={state.currentImage.path}
+          onClose={() => setShowAddFavoriteDialog(false)}
+          onSuccess={handleAddFavoriteSuccess}
+        />
       )}
     </div>
   );
