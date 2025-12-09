@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppState } from '../contexts/AppStateContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage } from '../api/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat } from '../api/tauri';
+import type { ImageFormat, ConversionOptions } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
 import { ResizeDialog } from './ResizeDialog';
+import { FormatConverterDialog } from './FormatConverterDialog';
 import './ImageViewer.css';
 
 /**
@@ -42,6 +44,7 @@ export const ImageViewer: React.FC = () => {
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [showResizeDialog, setShowResizeDialog] = useState<boolean>(false);
+  const [showFormatConverterDialog, setShowFormatConverterDialog] = useState<boolean>(false);
 
   /**
    * Calculate adaptive scaling for the image to fit within the container
@@ -187,9 +190,58 @@ export const ImageViewer: React.FC = () => {
     setShowResizeDialog(false);
   }, []);
 
+  /**
+   * Handle format conversion operation
+   * Opens the format converter dialog (Requirement 3.1)
+   */
   const handleConvert = useCallback(() => {
-    console.log('Convert operation - to be implemented');
-    // TODO: Implement in task 10
+    if (state.currentImage) {
+      setShowFormatConverterDialog(true);
+    }
+  }, [state.currentImage]);
+
+  /**
+   * Handle format conversion confirmation
+   * Performs the conversion and updates the image (Requirements 3.2, 3.3, 3.4, 3.5)
+   */
+  const handleConvertConfirm = useCallback(async (
+    targetFormat: ImageFormat,
+    options?: ConversionOptions
+  ) => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+
+      // Call the convert format API
+      const convertedImage = await convertFormat(
+        state.currentImage,
+        targetFormat,
+        options
+      );
+
+      // Update state with the converted image
+      setCurrentImage(convertedImage);
+      addToHistory(convertedImage);
+
+      // Close the dialog
+      setShowFormatConverterDialog(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '格式转换失败';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError]);
+
+  /**
+   * Handle format converter cancellation
+   */
+  const handleConvertCancel = useCallback(() => {
+    setShowFormatConverterDialog(false);
   }, []);
 
   const handleCrop = useCallback(() => {
@@ -347,6 +399,15 @@ export const ImageViewer: React.FC = () => {
           currentHeight={state.currentImage.height}
           onConfirm={handleResizeConfirm}
           onCancel={handleResizeCancel}
+        />
+      )}
+
+      {/* Format Converter Dialog */}
+      {showFormatConverterDialog && state.currentImage && (
+        <FormatConverterDialog
+          currentFormat={state.currentImage.format}
+          onConfirm={handleConvertConfirm}
+          onCancel={handleConvertCancel}
         />
       )}
     </div>

@@ -1,0 +1,65 @@
+/* FormatConverterDialog uses the same base styles as ResizeDialog */
+/* Additional specific styles for format conversion */
+
+.current-format {
+  margin-bottom: 20px;
+  padding: 12px;
+  background-color: var(--color-background);
+  border-radius: 4px;
+}
+
+.current-format p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.current-format strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.input-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  font-size: 14px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.input-group select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.input-group select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.label-hint {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+.format-info {
+  margin-top: 16px;
+  padding: 12px;
+  background-color: rgba(77, 159, 255, 0.1);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 4px;
+}
+
+.info-text {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}

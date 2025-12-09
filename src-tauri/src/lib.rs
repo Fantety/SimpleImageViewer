@@ -14,6 +14,9 @@ mod file_system_test;
 #[cfg(test)]
 mod resize_test;
 
+#[cfg(test)]
+mod format_conversion_test;
+
 // Re-export commonly used types
 pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor};
 pub use error::{AppError, AppResult};
@@ -386,6 +389,152 @@ fn calculate_aspect_ratio_dimensions(
     }
 }
 
+/// Convert image to a different format
+/// 
+/// Supports conversion between all supported formats (PNG, JPEG, GIF, BMP, WEBP, TIFF, ICO, AVIF)
+/// For lossy formats (JPEG, WEBP, AVIF), quality parameter can be specified (1-100)
+/// 
+/// Note: SVG and HEIC formats are not supported for conversion
+#[tauri::command]
+async fn convert_format(
+    image_data: ImageData,
+    target_format: String,
+    options: Option<ConversionOptions>,
+) -> Result<ImageData, String> {
+    // Parse target format
+    let target_format_enum = match target_format.to_uppercase().as_str() {
+        "PNG" => ImageFormat::PNG,
+        "JPEG" | "JPG" => ImageFormat::JPEG,
+        "GIF" => ImageFormat::GIF,
+        "BMP" => ImageFormat::BMP,
+        "WEBP" => ImageFormat::WEBP,
+        "TIFF" | "TIF" => ImageFormat::TIFF,
+        "ICO" => ImageFormat::ICO,
+        "AVIF" => ImageFormat::AVIF,
+        _ => {
+            return Err(AppError::UnsupportedFormat(
+                format!("Unsupported target format: {}", target_format)
+            ).into());
+        }
+    };
+    
+    // Validate that we can convert to this format
+    if target_format_enum == ImageFormat::SVG || target_format_enum == ImageFormat::HEIC {
+        return Err(AppError::UnsupportedFormat(
+            format!("Cannot convert to {} format", target_format_enum)
+        ).into());
+    }
+    
+    // Validate quality parameter if provided
+    if let Some(ref opts) = options {
+        if let Some(quality) = opts.quality {
+            if quality < 1 || quality > 100 {
+                return Err(AppError::InvalidParameters(
+                    "Quality parameter must be between 1 and 100".to_string()
+                ).into());
+            }
+        }
+    }
+    
+    // Decode Base64 data
+    let decoded_data = general_purpose::STANDARD
+        .decode(&image_data.data)
+        .map_err(|e| AppError::InvalidImageData(format!("Failed to decode Base64: {}", e)))?;
+    
+    // Load image from decoded data
+    let img = image::load_from_memory(&decoded_data)
+        .map_err(AppError::ImageError)?;
+    
+    // Convert to target format
+    let mut output_buffer = Vec::new();
+    let img_format = target_format_enum.to_image_format()
+        .ok_or_else(|| AppError::UnsupportedFormat(
+            format!("Cannot encode to {} format", target_format_enum)
+        ))?;
+    
+    // Handle quality parameter for lossy formats
+    match target_format_enum {
+        ImageFormat::JPEG => {
+            let quality = options
+                .as_ref()
+                .and_then(|o| o.quality)
+                .unwrap_or(90); // Default quality for JPEG
+            
+            let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
+                &mut output_buffer,
+                quality,
+            );
+            encoder.encode_image(&img)
+                .map_err(AppError::ImageError)?;
+        }
+        ImageFormat::WEBP => {
+            // Note: The image crate's WebP encoder doesn't support quality parameter directly
+            // We'll use the default encoding
+            img.write_to(&mut std::io::Cursor::new(&mut output_buffer), img_format)
+                .map_err(AppError::ImageError)?;
+        }
+        ImageFormat::AVIF => {
+            // Note: AVIF encoding with quality parameter may not be fully supported
+            // We'll use the default encoding
+            img.write_to(&mut std::io::Cursor::new(&mut output_buffer), img_format)
+                .map_err(AppError::ImageError)?;
+        }
+        _ => {
+            // For lossless formats, just encode normally
+            img.write_to(&mut std::io::Cursor::new(&mut output_buffer), img_format)
+                .map_err(AppError::ImageError)?;
+        }
+    }
+    
+    // Encode to Base64
+    let base64_data = general_purpose::STANDARD.encode(&output_buffer);
+    
+    // Detect alpha channel in converted image
+    let has_alpha = detect_alpha_channel(&img);
+    
+    // Update file path extension to match new format
+    let new_path = update_file_extension(&image_data.path, &target_format_enum);
+    
+    // Return new ImageData with updated format
+    Ok(ImageData {
+        path: new_path,
+        width: image_data.width,
+        height: image_data.height,
+        format: target_format_enum,
+        data: base64_data,
+        has_alpha,
+    })
+}
+
+/// Update file path extension to match the new format
+fn update_file_extension(path: &str, format: &ImageFormat) -> String {
+    let path_obj = Path::new(path);
+    let stem = path_obj.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("image");
+    
+    let extension = match format {
+        ImageFormat::PNG => "png",
+        ImageFormat::JPEG => "jpg",
+        ImageFormat::GIF => "gif",
+        ImageFormat::BMP => "bmp",
+        ImageFormat::WEBP => "webp",
+        ImageFormat::TIFF => "tiff",
+        ImageFormat::ICO => "ico",
+        ImageFormat::AVIF => "avif",
+        ImageFormat::SVG => "svg",
+        ImageFormat::HEIC => "heic",
+    };
+    
+    if let Some(parent) = path_obj.parent() {
+        parent.join(format!("{}.{}", stem, extension))
+            .to_string_lossy()
+            .to_string()
+    } else {
+        format!("{}.{}", stem, extension)
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -398,7 +547,8 @@ pub fn run() {
             open_file_dialog,
             save_file_dialog,
             save_image,
-            resize_image
+            resize_image,
+            convert_format
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

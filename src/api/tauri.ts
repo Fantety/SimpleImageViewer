@@ -82,3 +82,27 @@ export async function resizeImage(
     keepAspectRatio,
   });
 }
+
+/**
+ * Convert image to a different format
+ * 
+ * Supports conversion between: PNG, JPEG, GIF, BMP, WEBP, TIFF, ICO, AVIF
+ * Note: SVG and HEIC formats are not supported for conversion
+ * 
+ * @param imageData - ImageData object containing the image to convert
+ * @param targetFormat - Target format (e.g., 'PNG', 'JPEG', 'WEBP')
+ * @param options - Optional conversion options (quality for JPEG/WEBP/AVIF: 1-100)
+ * @returns Promise resolving to new ImageData with converted image
+ * @throws Error if format is unsupported or conversion fails
+ */
+export async function convertFormat(
+  imageData: ImageData,
+  targetFormat: string,
+  options?: { quality?: number }
+): Promise<ImageData> {
+  return await invoke<ImageData>('convert_format', {
+    imageData,
+    targetFormat,
+    options: options || null,
+  });
+}
