@@ -13,4 +13,5 @@ export { Notification, NotificationContainer } from './Notification';
 export type { NotificationProps, NotificationData, NotificationType } from './Notification';
 export { FavoritesSidebar } from './FavoritesSidebar';
 export { AddFavoriteDialog } from './AddFavoriteDialog';
+export { StickerDialog } from './StickerDialog';
 export * from './icons';

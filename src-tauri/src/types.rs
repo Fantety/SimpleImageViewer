@@ -103,3 +103,20 @@ pub struct RGBColor {
     /// Blue component (0-255)
     pub b: u8,
 }
+
+/// Represents a sticker to be applied to an image
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StickerData {
+    /// Base64 encoded sticker image data
+    pub image_data: String,
+    /// X position in the base image
+    pub x: u32,
+    /// Y position in the base image
+    pub y: u32,
+    /// Width of the sticker
+    pub width: u32,
+    /// Height of the sticker
+    pub height: u32,
+    /// Rotation angle in degrees
+    pub rotation: f32,
+}

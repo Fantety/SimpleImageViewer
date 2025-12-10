@@ -336,4 +336,43 @@ export async function fileExists(path: string): Promise<boolean> {
   return await invoke<boolean>('file_exists', { path });
 }
 
+/**
+ * Apply stickers to an image
+ * 
+ * Ensures immutability: creates a snapshot of the original ImageData before the operation
+ * and verifies it was not mutated after the operation completes.
+ * 
+ * @param imageData - ImageData object containing the base image
+ * @param stickers - Array of sticker data to apply to the image
+ * @returns Promise resolving to new ImageData with stickers applied
+ * @throws Error if sticker application fails or immutability is violated
+ */
+export async function applyStickers(
+  imageData: ImageData,
+  stickers: Array<{
+    image_data: string; // Base64 encoded sticker image
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation: number;
+  }>
+): Promise<ImageData> {
+  // Create a snapshot of the original for immutability verification
+  const originalSnapshot = deepCopyImageData(imageData);
+  
+  // Perform the sticker application operation
+  const result = await invoke<ImageData>('apply_stickers', {
+    imageData,
+    stickers,
+  });
+  
+  // Verify that the original was not mutated
+  if (!areImageDataEqual(originalSnapshot, imageData)) {
+    throw new Error('Immutability violation: original ImageData was mutated during sticker application');
+  }
+  
+  return result;
+}
+
 

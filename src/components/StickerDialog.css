@@ -1,0 +1,462 @@
+.sticker-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.sticker-dialog {
+  background-color: var(--color-surface);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sticker-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sticker-dialog-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.sticker-dialog-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.sticker-dialog-close:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.sticker-dialog-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sticker-dialog-content {
+  flex: 1;
+  overflow: hidden;
+  padding: 20px;
+  display: flex;
+  gap: 20px;
+  min-height: 0;
+}
+
+.sticker-preview-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sticker-preview-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--color-viewer-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  min-height: 400px;
+  flex: 1;
+  user-select: none;
+}
+
+.sticker-preview-image {
+  max-width: 100%;
+  max-height: 60vh;
+  display: block;
+  pointer-events: none;
+}
+
+.sticker-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.sticker-item {
+  position: absolute;
+  cursor: move;
+  pointer-events: auto;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  transition: border-color 0.2s;
+}
+
+.sticker-item-selected {
+  border-color: var(--color-accent);
+}
+
+.sticker-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+.sticker-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: var(--color-accent);
+  border: 2px solid white;
+  border-radius: 50%;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.sticker-handle-nw {
+  top: -6px;
+  left: -6px;
+  cursor: nw-resize;
+}
+
+.sticker-handle-ne {
+  top: -6px;
+  right: -6px;
+  cursor: ne-resize;
+}
+
+.sticker-handle-sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: sw-resize;
+}
+
+.sticker-handle-se {
+  bottom: -6px;
+  right: -6px;
+  cursor: se-resize;
+}
+
+.sticker-handle-rotate {
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: grab;
+  background-color: var(--color-accent);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+}
+
+.sticker-handle-rotate:active {
+  cursor: grabbing;
+}
+
+.sticker-handle-rotate::before {
+  content: '↻';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.sticker-delete {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 20px;
+  height: 20px;
+  background-color: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 11;
+  transition: background-color 0.2s;
+}
+
+.sticker-delete:hover {
+  background-color: #cc0000;
+}
+
+.sticker-controls-section {
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.sticker-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sticker-add-button {
+  padding: 12px 20px;
+  background-color: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sticker-add-button:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}
+
+.sticker-add-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sticker-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sticker-info p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.sticker-info p:first-child {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+/* Sticker List Styles */
+.sticker-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sticker-list h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sticker-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+}
+
+.sticker-list-empty p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.sticker-list-empty p:first-child {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.sticker-list-items {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sticker-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: var(--color-surface);
+}
+
+.sticker-list-item:hover {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-accent);
+}
+
+.sticker-list-item-selected {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+}
+
+.sticker-list-item-selected .sticker-list-item-name,
+.sticker-list-item-selected .sticker-list-item-details {
+  color: white;
+}
+
+.sticker-list-item-preview {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background-color: var(--color-viewer-bg);
+  border: 1px solid var(--color-border);
+}
+
+.sticker-list-item-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sticker-list-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sticker-list-item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: 2px;
+}
+
+.sticker-list-item-details {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.sticker-list-item-delete {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.sticker-list-item-delete:hover {
+  background-color: #ff4444;
+  color: white;
+}
+
+.sticker-list-item-selected .sticker-list-item-delete {
+  color: white;
+}
+
+.sticker-list-item-selected .sticker-list-item-delete:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.sticker-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.sticker-dialog-button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.sticker-dialog-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sticker-dialog-button-cancel {
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.sticker-dialog-button-cancel:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+}
+
+.sticker-dialog-button-secondary {
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.sticker-dialog-button-secondary:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-accent);
+}
+
+.sticker-dialog-button-confirm {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+.sticker-dialog-button-confirm:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}

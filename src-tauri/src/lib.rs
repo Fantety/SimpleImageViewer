@@ -31,7 +31,7 @@ mod immutability_test;
 mod favorites_test;
 
 // Re-export commonly used types
-pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor};
+pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor, StickerData};
 pub use error::{AppError, AppResult};
 pub use favorites::{FavoriteImage, FavoritesConfig};
 
@@ -832,6 +832,155 @@ async fn file_exists(path: String) -> Result<bool, String> {
     Ok(Path::new(&path).exists())
 }
 
+/// Apply stickers to an image
+/// 
+/// Composites multiple sticker images onto a base image at specified positions,
+/// sizes, and rotations. Stickers are applied in the order they appear in the array,
+/// with later stickers appearing on top of earlier ones.
+/// 
+/// @param image_data - The base image to apply stickers to
+/// @param stickers - Array of sticker data containing position, size, rotation, and image data
+/// @returns New ImageData with stickers applied
+#[tauri::command]
+async fn apply_stickers(
+    image_data: ImageData,
+    stickers: Vec<StickerData>,
+) -> Result<ImageData, String> {
+    if stickers.is_empty() {
+        return Err(AppError::InvalidParameters(
+            "No stickers provided".to_string()
+        ).into());
+    }
+
+    // Decode Base64 data for the base image
+    let decoded_data = general_purpose::STANDARD
+        .decode(&image_data.data)
+        .map_err(|e| AppError::InvalidImageData(format!("Failed to decode base image Base64: {}", e)))?;
+    
+    // Load base image from decoded data
+    let base_img = image::load_from_memory(&decoded_data)
+        .map_err(AppError::ImageError)?;
+    
+    // Convert to RGBA8 for compositing
+    let mut base_rgba = base_img.to_rgba8();
+    
+    // Apply each sticker
+    for (index, sticker) in stickers.iter().enumerate() {
+        // Validate sticker parameters
+        if sticker.width == 0 || sticker.height == 0 {
+            return Err(AppError::InvalidParameters(
+                format!("Sticker {} has invalid dimensions", index)
+            ).into());
+        }
+        
+        // Decode sticker image data
+        let sticker_decoded = general_purpose::STANDARD
+            .decode(&sticker.image_data)
+            .map_err(|e| AppError::InvalidImageData(
+                format!("Failed to decode sticker {} Base64: {}", index, e)
+            ))?;
+        
+        // Load sticker image
+        let sticker_img = image::load_from_memory(&sticker_decoded)
+            .map_err(|e| AppError::ImageError(
+                image::ImageError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Failed to load sticker {}: {}", index, e)
+                ))
+            ))?;
+        
+        // Resize sticker to target dimensions
+        let resized_sticker = sticker_img.resize_exact(
+            sticker.width,
+            sticker.height,
+            image::imageops::FilterType::Lanczos3
+        );
+        
+        // Apply rotation if needed
+        let rotated_sticker = if sticker.rotation != 0.0 {
+            // For simplicity, we'll support 90-degree increments
+            let normalized_rotation = ((sticker.rotation % 360.0) + 360.0) % 360.0;
+            match normalized_rotation as i32 {
+                0 => resized_sticker,
+                90 => resized_sticker.rotate90(),
+                180 => resized_sticker.rotate180(),
+                270 => resized_sticker.rotate270(),
+                _ => {
+                    // For non-90-degree rotations, we'll just use the original for now
+                    // Full rotation support would require more complex image processing
+                    resized_sticker
+                }
+            }
+        } else {
+            resized_sticker
+        };
+        
+        // Convert sticker to RGBA8
+        let sticker_rgba = rotated_sticker.to_rgba8();
+        
+        // Composite sticker onto base image using alpha blending
+        let sticker_width = sticker_rgba.width();
+        let sticker_height = sticker_rgba.height();
+        
+        for sy in 0..sticker_height {
+            for sx in 0..sticker_width {
+                let base_x = sticker.x + sx;
+                let base_y = sticker.y + sy;
+                
+                // Check bounds
+                if base_x >= base_rgba.width() || base_y >= base_rgba.height() {
+                    continue;
+                }
+                
+                let sticker_pixel = sticker_rgba.get_pixel(sx, sy);
+                let base_pixel = base_rgba.get_pixel_mut(base_x, base_y);
+                
+                // Alpha blending
+                let sticker_alpha = sticker_pixel.0[3] as f32 / 255.0;
+                let inv_alpha = 1.0 - sticker_alpha;
+                
+                // Blend RGB channels
+                base_pixel.0[0] = ((base_pixel.0[0] as f32 * inv_alpha) + (sticker_pixel.0[0] as f32 * sticker_alpha)) as u8;
+                base_pixel.0[1] = ((base_pixel.0[1] as f32 * inv_alpha) + (sticker_pixel.0[1] as f32 * sticker_alpha)) as u8;
+                base_pixel.0[2] = ((base_pixel.0[2] as f32 * inv_alpha) + (sticker_pixel.0[2] as f32 * sticker_alpha)) as u8;
+                
+                // Combine alpha channels
+                let combined_alpha = (base_pixel.0[3] as f32 / 255.0) * inv_alpha + sticker_alpha;
+                base_pixel.0[3] = (combined_alpha * 255.0) as u8;
+            }
+        }
+    }
+    
+    // Convert back to DynamicImage
+    let result_img = DynamicImage::ImageRgba8(base_rgba);
+    
+    // Encode to the same format as the original
+    let mut output_buffer = Vec::new();
+    let format = image_data.format.to_image_format()
+        .ok_or_else(|| AppError::UnsupportedFormat(
+            format!("Cannot encode {} format", image_data.format)
+        ))?;
+    
+    result_img.write_to(&mut std::io::Cursor::new(&mut output_buffer), format)
+        .map_err(AppError::ImageError)?;
+    
+    // Encode to Base64
+    let base64_data = general_purpose::STANDARD.encode(&output_buffer);
+    
+    // Detect alpha channel in result image
+    let has_alpha = detect_alpha_channel(&result_img);
+    
+    // Return new ImageData with stickers applied
+    Ok(ImageData {
+        path: image_data.path,
+        width: image_data.width,
+        height: image_data.height,
+        format: image_data.format,
+        data: base64_data,
+        has_alpha,
+    })
+}
+
 
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -852,6 +1001,7 @@ pub fn run() {
             crop_image,
             set_background,
             rotate_image,
+            apply_stickers,
             get_all_favorites,
             add_favorite,
             remove_favorite,

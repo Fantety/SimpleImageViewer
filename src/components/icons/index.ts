@@ -17,6 +17,7 @@ import { RotateRightIcon } from './RotateRightIcon';
 import { FavoriteIcon } from './FavoriteIcon';
 import { TagIcon } from './TagIcon';
 import { SearchIcon } from './SearchIcon';
+import { StickerIcon } from './StickerIcon';
 
 export type IconName = 
   | 'resize'
@@ -36,7 +37,8 @@ export type IconName =
   | 'rotate-right'
   | 'favorite'
   | 'tag'
-  | 'search';
+  | 'search'
+  | 'sticker';
 
 export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = {
   'resize': ResizeIcon,
@@ -57,6 +59,7 @@ export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = 
   'favorite': FavoriteIcon,
   'tag': TagIcon,
   'search': SearchIcon,
+  'sticker': StickerIcon,
 };
 
 // Export individual icons for direct use if needed
@@ -79,4 +82,5 @@ export {
   FavoriteIcon,
   TagIcon,
   SearchIcon,
+  StickerIcon,
 };

@@ -4,14 +4,15 @@ import { useAppState } from '../contexts/AppStateContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
 import { useImageZoom } from '../hooks/useImageZoom';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites } from '../api/tauri';
-import type { ImageFormat, ConversionOptions, RGBColor } from '../types/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites, applyStickers } from '../api/tauri';
+import type { ImageFormat, ConversionOptions, RGBColor, StickerData } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
 import { ResizeDialog } from './ResizeDialog';
 import { FormatConverterDialog } from './FormatConverterDialog';
 import { CropDialog } from './CropDialog';
 import { BackgroundSetterDialog } from './BackgroundSetterDialog';
+import { StickerDialog } from './StickerDialog';
 import { FavoritesSidebar } from './FavoritesSidebar';
 import { AddFavoriteDialog } from './AddFavoriteDialog';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -75,6 +76,7 @@ export const ImageViewer: React.FC = () => {
   const [showFormatConverterDialog, setShowFormatConverterDialog] = useState<boolean>(false);
   const [showCropDialog, setShowCropDialog] = useState<boolean>(false);
   const [showBackgroundSetterDialog, setShowBackgroundSetterDialog] = useState<boolean>(false);
+  const [showStickerDialog, setShowStickerDialog] = useState<boolean>(false);
   const [showFavoritesSidebar, setShowFavoritesSidebar] = useState<boolean>(false);
   const [showAddFavoriteDialog, setShowAddFavoriteDialog] = useState<boolean>(false);
   const [isCurrentImageFavorite, setIsCurrentImageFavorite] = useState<boolean>(false);
@@ -627,6 +629,113 @@ export const ImageViewer: React.FC = () => {
   }, []);
 
   /**
+   * Handle sticker operation
+   * Opens the sticker dialog
+   */
+  const handleSticker = useCallback(() => {
+    if (state.currentImage) {
+      setShowStickerDialog(true);
+    }
+  }, [state.currentImage]);
+
+  /**
+   * Handle sticker confirmation
+   * Applies stickers to the image
+   */
+  const handleStickerConfirm = useCallback(async (stickers: StickerData[], saveAsCopy: boolean) => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+      setLoadingProgress(0);
+      setOperationName('应用贴纸');
+
+      setLoadingProgress(30);
+
+      // Convert StickerData to the format expected by the API
+      const stickerParams = stickers.map(sticker => ({
+        image_data: sticker.imageData,
+        x: Math.round(sticker.x),
+        y: Math.round(sticker.y),
+        width: Math.round(sticker.width),
+        height: Math.round(sticker.height),
+        rotation: sticker.rotation,
+      }));
+
+      // Apply stickers to the image
+      const imageWithStickers = await applyStickers(state.currentImage, stickerParams);
+
+      setLoadingProgress(60);
+
+      if (saveAsCopy) {
+        // Save as copy - open save dialog
+        const currentPath = state.currentImage.path;
+        const fileName = currentPath.split('/').pop() || 'image';
+        const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+        const ext = fileName.substring(fileName.lastIndexOf('.'));
+        const defaultName = `${fileNameWithoutExt}_with_stickers${ext}`;
+        
+        const savePath = await saveFileDialog(defaultName);
+        
+        if (!savePath) {
+          // User cancelled
+          setLoading(false);
+          setLoadingProgress(0);
+          setOperationName('');
+          return;
+        }
+
+        setLoadingProgress(80);
+
+        // Save to the new path
+        await saveImage(imageWithStickers, savePath);
+        
+        showSuccess('保存成功', `贴纸已应用并保存到 ${savePath.split('/').pop()}`);
+      } else {
+        setLoadingProgress(80);
+
+        // Save to the original path (overwrite)
+        await saveImage(imageWithStickers, state.currentImage.path);
+        
+        // Update state with the modified image
+        setCurrentImage(imageWithStickers);
+        addToHistory(imageWithStickers);
+        showSuccess('保存成功', '贴纸已应用并保存');
+      }
+
+      setLoadingProgress(100);
+
+      // Close the dialog
+      setShowStickerDialog(false);
+    } catch (err) {
+      console.error('Sticker application error details:', err);
+      const errorMessage = err instanceof Error ? err.message : '应用贴纸失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      logError('Failed to apply stickers', error, 'ImageViewer', { 
+        operation: 'applyStickers', 
+        saveAsCopy, 
+        stickerCount: stickers.length
+      });
+      setError(errorMessage);
+      showError('操作失败', `${errorMessage} - 请检查控制台获取详细信息`);
+    } finally {
+      setLoading(false);
+      setLoadingProgress(0);
+      setOperationName('');
+    }
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError, showSuccess, showError]);
+
+  /**
+   * Handle sticker cancellation
+   */
+  const handleStickerCancel = useCallback(() => {
+    setShowStickerDialog(false);
+  }, []);
+
+  /**
    * Handle rotate left (counter-clockwise 90°)
    * Rotates the image and automatically saves it
    */
@@ -996,6 +1105,7 @@ export const ImageViewer: React.FC = () => {
           onConvert={handleConvert}
           onCrop={handleCrop}
           onSetBackground={handleSetBackground}
+          onSticker={handleSticker}
           onRotateLeft={handleRotateLeft}
           onRotateRight={handleRotateRight}
           onToggleFavorite={handleToggleFavorite}
@@ -1214,6 +1324,23 @@ export const ImageViewer: React.FC = () => {
             hasAlpha={state.currentImage.hasAlpha}
             onConfirm={handleSetBackgroundConfirm}
             onCancel={handleSetBackgroundCancel}
+          />
+        </ErrorBoundary>
+      )}
+
+      {/* Sticker Dialog */}
+      {showStickerDialog && state.currentImage && (
+        <ErrorBoundary
+          isolationName="StickerDialog"
+          onError={(error) => {
+            logError("Sticker dialog error", error, "StickerDialog");
+            setShowStickerDialog(false);
+          }}
+        >
+          <StickerDialog
+            imageData={state.currentImage}
+            onConfirm={handleStickerConfirm}
+            onCancel={handleStickerCancel}
           />
         </ErrorBoundary>
       )}

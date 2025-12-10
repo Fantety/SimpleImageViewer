@@ -25,6 +25,7 @@ export interface ToolbarProps {
   onConvert: () => void;
   onCrop: () => void;
   onSetBackground: () => void;
+  onSticker: () => void;
   onRotateLeft: () => void;
   onRotateRight: () => void;
   onToggleFavorite: () => void;
@@ -39,6 +40,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onConvert,
   onCrop,
   onSetBackground,
+  onSticker,
   onRotateLeft,
   onRotateRight,
   onToggleFavorite,
@@ -100,6 +102,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         >
           <Icon name="background" size={20} />
           <span className="toolbar-button-label">背景设置</span>
+        </button>
+
+        <button
+          className="toolbar-button"
+          onClick={onSticker}
+          disabled={disabled}
+          title="添加贴纸 - 在图片上添加其他图片作为贴纸"
+          aria-label="添加贴纸"
+        >
+          <Icon name="sticker" size={20} />
+          <span className="toolbar-button-label">添加贴纸</span>
         </button>
 
         <div className="toolbar-divider" />
