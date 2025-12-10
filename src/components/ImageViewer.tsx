@@ -4,7 +4,7 @@ import { useAppState } from '../contexts/AppStateContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
 import { useImageZoom } from '../hooks/useImageZoom';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites, ocrImage } from '../api/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites } from '../api/tauri';
 import type { ImageFormat, ConversionOptions, RGBColor } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
@@ -14,7 +14,6 @@ import { CropDialog } from './CropDialog';
 import { BackgroundSetterDialog } from './BackgroundSetterDialog';
 import { FavoritesSidebar } from './FavoritesSidebar';
 import { AddFavoriteDialog } from './AddFavoriteDialog';
-import { OcrDialog } from './OcrDialog';
 import { ErrorBoundary } from './ErrorBoundary';
 import { logError } from '../utils/errorLogger';
 import './ImageViewer.css';
@@ -79,8 +78,6 @@ export const ImageViewer: React.FC = () => {
   const [showFavoritesSidebar, setShowFavoritesSidebar] = useState<boolean>(false);
   const [showAddFavoriteDialog, setShowAddFavoriteDialog] = useState<boolean>(false);
   const [isCurrentImageFavorite, setIsCurrentImageFavorite] = useState<boolean>(false);
-  const [showOcrDialog, setShowOcrDialog] = useState<boolean>(false);
-  const [ocrText, setOcrText] = useState<string>('');
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [operationName, setOperationName] = useState<string>('');
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -790,61 +787,7 @@ export const ImageViewer: React.FC = () => {
     showSuccess('添加成功', '已添加到收藏夹');
   }, [showSuccess]);
 
-  /**
-   * Handle OCR
-   */
-  const handleOcr = useCallback(async () => {
-    if (!state.currentImage) {
-      return;
-    }
 
-    try {
-      setLoading(true);
-      clearError();
-      setLoadingProgress(0);
-      setOperationName('识别文字');
-
-      setLoadingProgress(30);
-
-      // Perform OCR
-      const text = await ocrImage(state.currentImage);
-
-      setLoadingProgress(100);
-
-      // Show result dialog
-      setOcrText(text);
-      setShowOcrDialog(true);
-
-      if (text) {
-        showSuccess('识别完成', '已识别图片中的文字');
-      } else {
-        showSuccess('识别完成', '未识别到文字');
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '文字识别失败';
-      const error = err instanceof Error ? err : new Error(errorMessage);
-      logError('Failed to perform OCR', error, 'ImageViewer', { operation: 'ocr' });
-      setError(errorMessage);
-      showError('识别失败', errorMessage);
-    } finally {
-      setLoading(false);
-      setLoadingProgress(0);
-      setOperationName('');
-    }
-  }, [state.currentImage, setLoading, clearError, setError, showSuccess, showError]);
-
-  /**
-   * Handle copy OCR text to clipboard
-   */
-  const handleCopyOcrText = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(ocrText);
-      showSuccess('复制成功', '文本已复制到剪贴板');
-    } catch (error) {
-      console.error('Failed to copy text:', error);
-      showError('复制失败', '无法复制到剪贴板');
-    }
-  }, [ocrText, showSuccess, showError]);
 
   /**
    * Load favorites on startup
@@ -1057,7 +1000,6 @@ export const ImageViewer: React.FC = () => {
           onRotateRight={handleRotateRight}
           onToggleFavorite={handleToggleFavorite}
           onOpenFavorites={handleOpenFavorites}
-          onOcr={handleOcr}
           disabled={!state.currentImage || state.isLoading}
           hasAlpha={state.currentImage?.hasAlpha || false}
           isFavorite={isCurrentImageFavorite}
@@ -1294,14 +1236,7 @@ export const ImageViewer: React.FC = () => {
         />
       )}
 
-      {/* OCR Dialog */}
-      {showOcrDialog && (
-        <OcrDialog
-          text={ocrText}
-          onClose={() => setShowOcrDialog(false)}
-          onCopy={handleCopyOcrText}
-        />
-      )}
+
     </div>
   );
 };
