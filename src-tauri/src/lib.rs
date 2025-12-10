@@ -61,32 +61,12 @@ fn greet(name: &str) -> String {
 fn on_image_source_listener_ready(app: AppHandle) {
     #[cfg(target_os = "macos")]
     {
+        println!("=== ON_IMAGE_SOURCE_LISTENER_READY CALLED ===");
         let state = app.state::<AppState>();
         let mut opened_image_sources = state.opened_image_sources.lock().unwrap();
 
-        // Process URLs: remove file:// prefix and decode URL encoding
-        let formatted_sources: Vec<String> = opened_image_sources
-            .iter()
-            .filter_map(|url| {
-                // Remove file:// prefix
-                let path = url.replace("file://", "");
-                
-                // URL decode the path to handle Chinese characters and special characters
-                match urlencoding::decode(&path) {
-                    Ok(decoded) => {
-                        let decoded_path = decoded.to_string();
-                        println!("Original URL: {}", url);
-                        println!("Decoded path: {}", decoded_path);
-                        Some(decoded_path)
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to decode URL {}: {}", path, e);
-                        // Fallback to the original path without decoding
-                        Some(path)
-                    }
-                }
-            })
-            .collect();
+        // The sources in AppState are already processed (URL decoded) from RunEvent::Opened
+        let formatted_sources: Vec<String> = opened_image_sources.clone();
 
         if !formatted_sources.is_empty() {
             println!("Emitting image-source event with {} files", formatted_sources.len());
@@ -100,8 +80,13 @@ fn on_image_source_listener_ready(app: AppHandle) {
             app.emit("image-source", formatted_sources)
                 .unwrap_or_else(|err| eprintln!("Emit error: {:?}", err));
         } else {
-            println!("No image sources to emit");
+            println!("No image sources to emit (AppState is empty)");
         }
+    }
+    
+    #[cfg(not(target_os = "macos"))]
+    {
+        println!("on_image_source_listener_ready called on non-macOS platform - no action needed");
     }
 }
 
@@ -1655,9 +1640,63 @@ pub fn run() {
                 
                 let state = app.state::<AppState>();
                 let mut opened_image_sources = state.opened_image_sources.lock().unwrap();
-                *opened_image_sources = urls.iter().map(|x| x.to_string()).collect();
+                
+                // Process URLs: remove file:// prefix and decode URL encoding
+                let formatted_sources: Vec<String> = urls
+                    .iter()
+                    .filter_map(|url| {
+                        // Convert URL to string and remove file:// prefix
+                        let url_str = url.to_string();
+                        let path = url_str.replace("file://", "");
+                        
+                        // URL decode the path to handle Chinese characters and special characters
+                        match urlencoding::decode(&path) {
+                            Ok(decoded) => {
+                                let decoded_path = decoded.to_string();
+                                println!("Original URL: {}", url_str);
+                                println!("Decoded path: {}", decoded_path);
+                                Some(decoded_path)
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to decode URL {}: {}", path, e);
+                                // Fallback to the original path without decoding
+                                Some(path)
+                            }
+                        }
+                    })
+                    .collect();
+                
+                // Store the processed sources
+                *opened_image_sources = formatted_sources.clone();
                 
                 println!("Stored {} image sources in AppState", opened_image_sources.len());
+                
+                // Try to emit the event immediately (for when app is already running)
+                // If the main window exists, the app is already running
+                if !formatted_sources.is_empty() {
+                    if let Some(window) = app.get_webview_window("main") {
+                        println!("App is already running, immediately emitting image-source event");
+                        for source in &formatted_sources {
+                            println!("  - {}", source);
+                        }
+                        
+                        // Bring the window to front when opening a new file
+                        println!("Bringing main window to front...");
+                        let _ = window.unminimize();
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                        
+                        app.emit("image-source", formatted_sources)
+                            .unwrap_or_else(|err| eprintln!("Emit error: {:?}", err));
+                        
+                        // Clear the sources after emitting to prevent duplicate handling
+                        opened_image_sources.clear();
+                    } else {
+                        println!("App is starting up, storing sources for later retrieval");
+                        // App is starting up, keep the sources in AppState for later retrieval
+                        // Don't clear them here - they will be cleared when onImageSourceListenerReady is called
+                    }
+                }
             }
         });
 }
