@@ -112,14 +112,37 @@ export function StickerDialog({ imageData, onConfirm, onCancel }: StickerDialogP
         // Create a temporary image to get dimensions
         const img = new Image();
         img.onload = () => {
+          // 计算贴纸的合适尺寸，保持原始宽高比
+          const maxStickerSize = Math.min(imageData.width, imageData.height) * 0.3; // 最大尺寸为底图较小边的30%
+          const stickerAspectRatio = img.width / img.height;
+          
+          let stickerWidth, stickerHeight;
+          
+          // 如果贴纸原始尺寸小于最大尺寸，使用原始尺寸
+          if (img.width <= maxStickerSize && img.height <= maxStickerSize) {
+            stickerWidth = img.width;
+            stickerHeight = img.height;
+          } else {
+            // 否则按比例缩放到合适尺寸
+            if (stickerAspectRatio > 1) {
+              // 宽度大于高度，以宽度为准
+              stickerWidth = maxStickerSize;
+              stickerHeight = maxStickerSize / stickerAspectRatio;
+            } else {
+              // 高度大于等于宽度，以高度为准
+              stickerHeight = maxStickerSize;
+              stickerWidth = maxStickerSize * stickerAspectRatio;
+            }
+          }
+          
           const newSticker: StickerData = {
             id: `sticker-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
             imageData: result.split(',')[1], // Remove data:image/...;base64, prefix
             originalDataUrl: result, // Keep full data URL for display
             x: Math.floor(imageData.width * 0.1),
             y: Math.floor(imageData.height * 0.1),
-            width: Math.min(img.width, Math.floor(imageData.width * 0.3)),
-            height: Math.min(img.height, Math.floor(imageData.height * 0.3)),
+            width: Math.round(stickerWidth),
+            height: Math.round(stickerHeight),
             rotation: 0,
             zIndex: stickers.length,
           };
@@ -177,26 +200,47 @@ export function StickerDialog({ imageData, onConfirm, onCancel }: StickerDialogP
       if (dragState.handle === 'move') {
         updatedSticker.x = Math.max(0, Math.min(dragState.initialSticker.x + dx, imageData.width - updatedSticker.width));
         updatedSticker.y = Math.max(0, Math.min(dragState.initialSticker.y + dy, imageData.height - updatedSticker.height));
-      } else if (dragState.handle === 'nw') {
-        const newWidth = Math.max(20, dragState.initialSticker.width - dx);
-        const newHeight = Math.max(20, dragState.initialSticker.height - dy);
-        updatedSticker.x = dragState.initialSticker.x + dragState.initialSticker.width - newWidth;
-        updatedSticker.y = dragState.initialSticker.y + dragState.initialSticker.height - newHeight;
+      } else if (dragState.handle === 'nw' || dragState.handle === 'ne' || dragState.handle === 'sw' || dragState.handle === 'se') {
+        // 保持宽高比的调整逻辑
+        const aspectRatio = dragState.initialSticker.width / dragState.initialSticker.height;
+        
+        let newWidth, newHeight;
+        
+        if (dragState.handle === 'nw') {
+          // 左上角：向左上拖拽减小尺寸，向右下拖拽增大尺寸
+          const sizeDelta = Math.max(-dx, -dy); // 取较大的变化量
+          newWidth = Math.max(20, dragState.initialSticker.width + sizeDelta);
+          newHeight = newWidth / aspectRatio;
+          
+          updatedSticker.x = dragState.initialSticker.x + dragState.initialSticker.width - newWidth;
+          updatedSticker.y = dragState.initialSticker.y + dragState.initialSticker.height - newHeight;
+        } else if (dragState.handle === 'ne') {
+          // 右上角：向右上拖拽
+          const sizeDelta = Math.max(dx, -dy);
+          newWidth = Math.max(20, dragState.initialSticker.width + sizeDelta);
+          newHeight = newWidth / aspectRatio;
+          
+          updatedSticker.y = dragState.initialSticker.y + dragState.initialSticker.height - newHeight;
+        } else if (dragState.handle === 'sw') {
+          // 左下角：向左下拖拽
+          const sizeDelta = Math.max(-dx, dy);
+          newWidth = Math.max(20, dragState.initialSticker.width + sizeDelta);
+          newHeight = newWidth / aspectRatio;
+          
+          updatedSticker.x = dragState.initialSticker.x + dragState.initialSticker.width - newWidth;
+        } else if (dragState.handle === 'se') {
+          // 右下角：向右下拖拽增大尺寸
+          const sizeDelta = Math.max(dx, dy);
+          newWidth = Math.max(20, dragState.initialSticker.width + sizeDelta);
+          newHeight = newWidth / aspectRatio;
+        }
+        
+        // 确保最小尺寸
+        newWidth = Math.max(20, newWidth!);
+        newHeight = Math.max(20 / aspectRatio, newHeight!);
+        
         updatedSticker.width = newWidth;
         updatedSticker.height = newHeight;
-      } else if (dragState.handle === 'ne') {
-        updatedSticker.width = Math.max(20, dragState.initialSticker.width + dx);
-        const newHeight = Math.max(20, dragState.initialSticker.height - dy);
-        updatedSticker.y = dragState.initialSticker.y + dragState.initialSticker.height - newHeight;
-        updatedSticker.height = newHeight;
-      } else if (dragState.handle === 'sw') {
-        const newWidth = Math.max(20, dragState.initialSticker.width - dx);
-        updatedSticker.x = dragState.initialSticker.x + dragState.initialSticker.width - newWidth;
-        updatedSticker.width = newWidth;
-        updatedSticker.height = Math.max(20, dragState.initialSticker.height + dy);
-      } else if (dragState.handle === 'se') {
-        updatedSticker.width = Math.max(20, dragState.initialSticker.width + dx);
-        updatedSticker.height = Math.max(20, dragState.initialSticker.height + dy);
       } else if (dragState.handle === 'rotate') {
         // 旋转手柄现在只用于点击旋转90度，拖拽功能已移除
         // 精确旋转请使用右侧列表中的滑动条

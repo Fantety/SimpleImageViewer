@@ -5,28 +5,13 @@ export const StickerIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
     <svg
       width="24"
       height="24"
-      viewBox="0 0 24 24"
-      fill="none"
+      viewBox="0 0 1024 1024"
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
-      <path
-        d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M19 19L19.74 20.26L21 21L19.74 21.74L19 23L18.26 21.74L17 21L18.26 20.26L19 19Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M5 5L5.74 6.26L7 7L5.74 7.74L5 9L4.26 7.74L3 7L4.26 6.26L5 5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
+      <path 
+        fill="currentColor" 
+        d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448s448-200.6 448-448S759.4 64 512 64M288 421a48.01 48.01 0 0 1 96 0a48.01 48.01 0 0 1-96 0m384 200c0 4.4-3.6 8-8 8H360c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h304c4.4 0 8 3.6 8 8zm16-152a48.01 48.01 0 0 1 0-96a48.01 48.01 0 0 1 0 96"
       />
     </svg>
   );
