@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="app-icon.png" alt="Simple Image Viewer" width="200" height="200">
+
 **轻量级图片查看器 + 基础编辑工具**
 
 一个专为 macOS 设计的现代化图片查看和编辑应用，既轻量又强大。
