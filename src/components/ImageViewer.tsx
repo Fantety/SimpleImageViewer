@@ -4,7 +4,7 @@ import { useAppState } from '../contexts/AppStateContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
 import { useImageZoom } from '../hooks/useImageZoom';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites, applyStickers, applyTexts, getCommandLineArgs } from '../api/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites, applyStickers, applyTexts, getCommandLineArgs, onImageSourceListenerReady } from '../api/tauri';
 import type { ImageFormat, ConversionOptions, RGBColor, StickerData, TextData } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
@@ -1008,53 +1008,90 @@ export const ImageViewer: React.FC = () => {
 
 
   /**
-   * Handle file opening via single-instance plugin (for file associations)
-   * When user opens an image file with this app, the file path is passed via event
+   * Handle file opening via macOS "Open With" functionality and command line arguments
+   * Uses the new AppState-based approach for macOS and fallback to command line args for other platforms
    */
   useEffect(() => {
-    let unlistenFn: (() => void) | null = null;
+    let imageSourceUnlistenFn: (() => void) | null = null;
     
     const setupFileOpenListener = async () => {
       try {
         const { listen } = await import('@tauri-apps/api/event');
         
-        // Listen for open-file events from single-instance plugin
-        unlistenFn = await listen<string>('open-file', async (event) => {
-          console.log('=== OPEN-FILE EVENT RECEIVED ===');
+        // Listen for image-source events from macOS "Open With" functionality
+        imageSourceUnlistenFn = await listen<string[]>('image-source', async (event) => {
+          console.log('=== IMAGE-SOURCE EVENT RECEIVED ===');
           console.log('Event payload:', event.payload);
           console.log('Event payload type:', typeof event.payload);
           console.log('Event full object:', event);
           
-          const filePath = event.payload;
+          const filePaths = event.payload;
           
-          if (filePath && typeof filePath === 'string') {
-            console.log('Processing file path:', filePath);
+          if (Array.isArray(filePaths) && filePaths.length > 0) {
+            const filePath = filePaths[0]; // Load the first image
+            console.log('Processing file path from image-source:', filePath);
+            console.log('File path length:', filePath.length);
+            console.log('File path bytes:', new TextEncoder().encode(filePath));
+            
+            // Check if it's an image file (same validation as drag and drop)
+            const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg', '.tiff', '.tif', '.ico', '.heic', '.avif'];
+            const fileName = filePath.toLowerCase();
+            const isImage = imageExtensions.some(ext => fileName.endsWith(ext));
+            
+            console.log('File name (lowercase):', fileName);
+            console.log('Is image file:', isImage);
+            
+            if (!isImage) {
+              console.log('File is not an image:', fileName);
+              showErrorRef.current('不支持的文件', '请选择图片文件（PNG、JPEG、GIF、BMP、WEBP、SVG、TIFF、ICO、HEIC、AVIF）');
+              return;
+            }
+            
             try {
-              console.log('About to call loadImageFromPath...');
+              console.log('About to call loadImageFromPath with:', filePath);
               await loadImageFromPath(filePath, true);
               console.log('loadImageFromPath completed successfully');
             } catch (error) {
-              console.error('Failed to load image from open-file event:', error);
+              console.error('Failed to load image from image-source event:', error);
+              console.error('Error details:', {
+                message: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined,
+                filePath: filePath
+              });
+              showErrorRef.current('加载失败', `无法加载图片: ${error instanceof Error ? error.message : String(error)}`);
             }
           } else {
-            console.log('Invalid file path received:', filePath);
+            console.log('Invalid file paths received:', filePaths);
           }
         });
         
-        // Also check command line arguments on startup (first instance)
+        // Notify backend that we're ready to receive image sources (macOS)
+        console.log('Notifying backend that image source listener is ready...');
+        await onImageSourceListenerReady();
+        console.log('Backend notified successfully');
+        
+        // Fallback: Also check command line arguments on startup (for non-macOS platforms)
         const args = await getCommandLineArgs();
         console.log('Command line arguments on startup:', args);
         
         for (const arg of args) {
           if (arg.startsWith('-')) continue;
           
-          try {
-            await loadImage(arg);
+          // Check if it's an image file (same logic as drag and drop)
+          const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg', '.tiff', '.tif', '.ico', '.heic', '.avif'];
+          const fileName = arg.toLowerCase();
+          const isImage = imageExtensions.some(ext => fileName.endsWith(ext));
+          
+          if (isImage) {
             console.log('Loading image from command line:', arg);
-            await loadImageFromPath(arg, true);
-            break;
-          } catch (error) {
-            console.log('Argument is not a valid image file:', arg);
+            try {
+              await loadImageFromPath(arg, true);
+              break;
+            } catch (error) {
+              console.log('Failed to load image from command line:', arg, error);
+            }
+          } else {
+            console.log('Argument is not an image file:', arg);
           }
         }
         
@@ -1066,8 +1103,8 @@ export const ImageViewer: React.FC = () => {
     setupFileOpenListener();
 
     return () => {
-      if (unlistenFn) {
-        unlistenFn();
+      if (imageSourceUnlistenFn) {
+        imageSourceUnlistenFn();
       }
     };
   }, [loadImageFromPath]);

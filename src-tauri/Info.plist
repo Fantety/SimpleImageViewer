@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Image File</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.png</string>
+                <string>public.jpeg</string>
+                <string>public.jpg</string>
+                <string>public.gif</string>
+                <string>public.bmp</string>
+                <string>public.webp</string>
+                <string>public.svg-image</string>
+                <string>public.tiff</string>
+                <string>public.ico</string>
+                <string>public.heic</string>
+                <string>org.khronos.avif</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+        </dict>
+    </array>
+    
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>org.khronos.avif</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.image</string>
+            </array>
+            <key>UTTypeDescription</key>
+            <string>AVIF Image</string>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>avif</string>
+                </array>
+                <key>public.mime-type</key>
+                <string>image/avif</string>
+            </dict>
+        </dict>
+    </array>
+</dict>
+</plist>

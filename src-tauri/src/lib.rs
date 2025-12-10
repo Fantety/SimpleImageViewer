@@ -40,11 +40,69 @@ use image::{DynamicImage, GenericImageView, ImageReader, Rgba};
 // Note: imageproc is available for future use if needed
 use std::fs;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, Manager};
+
+// AppState to store opened image sources for macOS "Open With" functionality
+#[derive(Default)]
+struct AppState {
+    opened_image_sources: Arc<Mutex<Vec<String>>>,
+}
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+/// This function will be called by the frontend when it's ready to receive image sources
+/// It handles the macOS "Open With" functionality by retrieving stored image paths
+#[tauri::command]
+fn on_image_source_listener_ready(app: AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let state = app.state::<AppState>();
+        let mut opened_image_sources = state.opened_image_sources.lock().unwrap();
+
+        // Process URLs: remove file:// prefix and decode URL encoding
+        let formatted_sources: Vec<String> = opened_image_sources
+            .iter()
+            .filter_map(|url| {
+                // Remove file:// prefix
+                let path = url.replace("file://", "");
+                
+                // URL decode the path to handle Chinese characters and special characters
+                match urlencoding::decode(&path) {
+                    Ok(decoded) => {
+                        let decoded_path = decoded.to_string();
+                        println!("Original URL: {}", url);
+                        println!("Decoded path: {}", decoded_path);
+                        Some(decoded_path)
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to decode URL {}: {}", path, e);
+                        // Fallback to the original path without decoding
+                        Some(path)
+                    }
+                }
+            })
+            .collect();
+
+        if !formatted_sources.is_empty() {
+            println!("Emitting image-source event with {} files", formatted_sources.len());
+            for source in &formatted_sources {
+                println!("  - {}", source);
+            }
+            
+            // Clear the sources after processing to prevent duplicate handling
+            opened_image_sources.clear();
+            
+            app.emit("image-source", formatted_sources)
+                .unwrap_or_else(|err| eprintln!("Emit error: {:?}", err));
+        } else {
+            println!("No image sources to emit");
+        }
+    }
 }
 
 /// Load an image from the specified file path
@@ -59,15 +117,29 @@ fn greet(name: &str) -> String {
 /// - hasAlpha: whether the image has transparency
 #[tauri::command]
 async fn load_image(path: String) -> Result<ImageData, String> {
-    // Validate file exists
-    error::utils::validate_file_exists(&path)?;
+    // Decode URL encoding if present (for macOS "Open With" functionality)
+    let decoded_path = match urlencoding::decode(&path) {
+        Ok(decoded) => {
+            let decoded_str = decoded.to_string();
+            println!("URL decoded path: {} -> {}", path, decoded_str);
+            decoded_str
+        }
+        Err(_) => {
+            // If decoding fails, use the original path
+            println!("Using original path (no URL decoding needed): {}", path);
+            path.clone()
+        }
+    };
     
-    // Read the file into memory
-    let file_bytes = fs::read(&path)
+    // Validate file exists using the decoded path
+    error::utils::validate_file_exists(&decoded_path)?;
+    
+    // Read the file into memory using the decoded path
+    let file_bytes = fs::read(&decoded_path)
         .map_err(AppError::IoError)?;
     
-    // Detect format from file extension and content
-    let path_obj = Path::new(&path);
+    // Detect format from file extension and content using the decoded path
+    let path_obj = Path::new(&decoded_path);
     let extension = path_obj
         .extension()
         .and_then(|e| e.to_str())
@@ -76,7 +148,7 @@ async fn load_image(path: String) -> Result<ImageData, String> {
     
     // Handle SVG separately as it's not supported by the image crate for decoding
     if extension == "svg" {
-        return load_svg_image(path, file_bytes);
+        return load_svg_image(decoded_path, file_bytes);
     }
     
     // Handle HEIC separately (not supported by image crate)
@@ -86,8 +158,8 @@ async fn load_image(path: String) -> Result<ImageData, String> {
         ).into());
     }
     
-    // Load image using the image crate
-    let img = ImageReader::open(&path)
+    // Load image using the image crate with the decoded path
+    let img = ImageReader::open(&decoded_path)
         .map_err(AppError::IoError)?
         .decode()
         .map_err(AppError::ImageError)?;
@@ -96,14 +168,14 @@ async fn load_image(path: String) -> Result<ImageData, String> {
     let (width, height) = img.dimensions();
     let has_alpha = detect_alpha_channel(&img);
     
-    // Detect format
-    let format = detect_image_format(&path, &extension)?;
+    // Detect format using the decoded path
+    let format = detect_image_format(&decoded_path, &extension)?;
     
     // Encode to Base64
     let base64_data = general_purpose::STANDARD.encode(&file_bytes);
     
     Ok(ImageData {
-        path,
+        path: decoded_path,
         width,
         height,
         format,
@@ -1520,7 +1592,7 @@ fn get_font_data_from_path(fonts_dir: &Path, font_name: &str, font_extensions: &
     Err(format!("Font '{}' not found in directory", font_name))
 }
 
-/// Get command line arguments
+/// Get command line arguments (deprecated - use on_image_source_listener_ready for macOS)
 #[tauri::command]
 async fn get_command_line_args() -> Result<Vec<String>, String> {
     let args: Vec<String> = std::env::args().collect();
@@ -1540,76 +1612,13 @@ async fn get_command_line_args() -> Result<Vec<String>, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default();
-    
-    // Initialize single instance plugin first (for file associations)
-    #[cfg(desktop)]
-    {
-        use tauri::{Manager, Emitter};
-        
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            println!("=== SINGLE INSTANCE CALLBACK TRIGGERED ===");
-            println!("Args received: {:?}", args);
-            println!("Args count: {}", args.len());
-            
-            // Get the main window and restore it if minimized
-            if let Some(window) = app.get_webview_window("main") {
-                println!("Found main window, restoring and focusing...");
-                
-                // If window is minimized, restore it
-                let _ = window.unminimize();
-                let _ = window.show();
-                
-                // Focus the window
-                let _ = window.set_focus();
-                
-                // If we have file arguments, emit them
-                if args.len() > 1 {
-                    let file_path = &args[1];
-                    println!("Emitting open-file event with path: {}", file_path);
-                    
-                    match app.emit("open-file", file_path) {
-                        Ok(_) => println!("Successfully emitted open-file event"),
-                        Err(e) => println!("Failed to emit open-file event: {}", e),
-                    }
-                } else {
-                    println!("No file arguments found (only program name)");
-                }
-            } else {
-                println!("Main window not found!");
-            }
-        }));
-    }
-    
-    builder
+    let app_state = AppState::default();
+
+    tauri::Builder::default()
+        .manage(app_state)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .setup(|app| {
-            use tauri::{Manager, Emitter};
-            
-            println!("=== APP SETUP TRIGGERED ===");
-            
-            // Get command line arguments on first startup
-            let args: Vec<String> = std::env::args().collect();
-            println!("Setup - Args received: {:?}", args);
-            
-            // If we have file arguments on startup, emit them
-            if args.len() > 1 {
-                let file_path = &args[1];
-                println!("Setup - Emitting open-file event with path: {}", file_path);
-                
-                // Emit to the app (global event)
-                match app.emit("open-file", file_path) {
-                    Ok(_) => println!("Setup - Successfully emitted open-file event"),
-                    Err(e) => println!("Setup - Failed to emit open-file event: {}", e),
-                }
-            } else {
-                println!("Setup - No file arguments found");
-            }
-            
-            Ok(())
-        })
         .invoke_handler(tauri::generate_handler![
             greet, 
             load_image,
@@ -1633,8 +1642,22 @@ pub fn run() {
             file_exists,
             get_available_fonts,
             get_font_data,
-            get_command_line_args
+            get_command_line_args,
+            on_image_source_listener_ready
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app, event| {
+            // macOS specific event listener for when the app is opened with an image
+            if let tauri::RunEvent::Opened { urls } = event {
+                println!("=== TAURI OPENED EVENT TRIGGERED ===");
+                println!("URLs received: {:?}", urls);
+                
+                let state = app.state::<AppState>();
+                let mut opened_image_sources = state.opened_image_sources.lock().unwrap();
+                *opened_image_sources = urls.iter().map(|x| x.to_string()).collect();
+                
+                println!("Stored {} image sources in AppState", opened_image_sources.len());
+            }
+        });
 }

@@ -337,12 +337,22 @@ export async function fileExists(path: string): Promise<boolean> {
 }
 
 /**
- * Get command line arguments
+ * Get command line arguments (deprecated - use onImageSourceListenerReady for macOS)
  * 
  * @returns Promise resolving to array of command line arguments
  */
 export async function getCommandLineArgs(): Promise<string[]> {
   return await invoke<string[]>('get_command_line_args');
+}
+
+/**
+ * Notify the backend that the frontend is ready to receive image sources
+ * This is used for macOS "Open With" functionality
+ * 
+ * @returns Promise that resolves when the backend has processed any pending image sources
+ */
+export async function onImageSourceListenerReady(): Promise<void> {
+  return await invoke<void>('on_image_source_listener_ready');
 }
 
 /**
