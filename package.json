@@ -3,13 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint . --ext ts,tsx",
-    "lint:fix": "eslint . --ext ts,tsx --fix"
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "build:release": "./scripts/build-local.sh",
+    "set-default": "./scripts/set-default-app.sh",
+    "test:file-association": "./scripts/test-file-association.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

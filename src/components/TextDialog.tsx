@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ImageData, TextData } from '../types/tauri';
+import { getAvailableFonts, getFontData } from '../api/tauri';
 import { ConfirmDialog } from './ConfirmDialog';
 import './TextDialog.css';
 
@@ -19,16 +20,7 @@ interface DragState {
   initialText: TextData | null;
 }
 
-const FONT_FAMILIES = [
-  'Arial',
-  'Helvetica',
-  'Times New Roman',
-  'Georgia',
-  'Verdana',
-  'Courier New',
-  'Impact',
-  'Comic Sans MS',
-];
+
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 64, 72, 96];
 
@@ -51,9 +43,113 @@ export function TextDialog({ imageData, onConfirm, onCancel }: TextDialogProps) 
   });
   const [showConfirm, setShowConfirm] = useState<boolean>(false);
   const [pendingSaveAsCopy, setPendingSaveAsCopy] = useState<boolean>(false);
+  const [availableFonts, setAvailableFonts] = useState<string[]>([]);
+  const [fontsLoading, setFontsLoading] = useState(true);
+  const [loadedFonts, setLoadedFonts] = useState<Set<string>>(new Set());
   
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Get MIME type for font format
+  const getFontMimeType = (format: string): string => {
+    switch (format.toLowerCase()) {
+      case 'ttf':
+        return 'font/ttf';
+      case 'otf':
+        return 'font/otf';
+      case 'woff':
+        return 'font/woff';
+      case 'woff2':
+        return 'font/woff2';
+      case 'ttc':
+        return 'font/collection';
+      default:
+        return 'font/truetype'; // fallback
+    }
+  };
+
+  // Sanitize font name for CSS usage
+  const sanitizeFontName = useCallback((fontName: string): string => {
+    // Replace problematic characters and ensure it's a valid CSS font family name
+    return fontName.replace(/[^a-zA-Z0-9\-_]/g, '').replace(/^-+|-+$/g, '') || 'CustomFont';
+  }, []);
+
+  // Load font dynamically for preview
+  const loadFontForPreview = useCallback(async (fontName: string) => {
+    if (loadedFonts.has(fontName)) {
+      return; // Font already loaded
+    }
+
+    try {
+      const fontData = await getFontData(fontName);
+      const sanitizedName = sanitizeFontName(fontName);
+      
+      // Skip TTC fonts as they're not well supported by FontFace API
+      if (fontData.format.toLowerCase() === 'ttc') {
+        console.warn(`Font '${fontName}' is TTC format, which may not be supported for web preview. Skipping.`);
+        return;
+      }
+      
+      const mimeType = getFontMimeType(fontData.format);
+      
+      // Clean Base64 data - remove any whitespace or newlines
+      const cleanBase64 = fontData.data.replace(/\s/g, '');
+      
+      // Validate Base64 data
+      if (!cleanBase64 || cleanBase64.length === 0) {
+        throw new Error('Empty font data received');
+      }
+      
+      // Create font face with sanitized name and correct MIME type
+      // Use url() wrapper for better compatibility
+      const fontFace = new FontFace(sanitizedName, `url(data:${mimeType};base64,${cleanBase64})`);
+      
+      // Set font display for better loading experience
+      fontFace.display = 'swap';
+      
+      // Load the font with timeout
+      const loadPromise = fontFace.load();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Font load timeout')), 5000)
+      );
+      
+      await Promise.race([loadPromise, timeoutPromise]);
+      
+      // Add to document fonts
+      document.fonts.add(fontFace);
+      
+      // Mark as loaded
+      setLoadedFonts(prev => new Set([...prev, fontName]));
+      
+      console.log(`Font '${fontName}' (${fontData.format}) loaded successfully for preview as '${sanitizedName}'`);
+    } catch (error) {
+      console.error(`Failed to load font '${fontName}' for preview:`, error);
+      // Don't mark as loaded if it failed, so it can be retried later
+    }
+  }, [loadedFonts, sanitizeFontName]);
+
+  // Load available fonts on component mount
+  useEffect(() => {
+    const loadFonts = async () => {
+      try {
+        setFontsLoading(true);
+        const fonts = await getAvailableFonts();
+        setAvailableFonts(fonts);
+        
+        // Preload the first font for immediate use
+        if (fonts.length > 0) {
+          await loadFontForPreview(fonts[0]);
+        }
+      } catch (error) {
+        console.error('Failed to load available fonts:', error);
+        setAvailableFonts([]);
+      } finally {
+        setFontsLoading(false);
+      }
+    };
+
+    loadFonts();
+  }, [loadFontForPreview]);
 
   const handleConfirm = async (saveAsCopy: boolean) => {
     if (texts.length === 0) {
@@ -114,13 +210,18 @@ export function TextDialog({ imageData, onConfirm, onCancel }: TextDialogProps) 
   };
 
   const handleAddText = () => {
+    if (availableFonts.length === 0) {
+      alert('没有可用的字体文件，请在 fonts 目录中添加字体文件');
+      return;
+    }
+
     const newText: TextData = {
       id: `text-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       text: '新文字',
       x: Math.floor(imageData.width * 0.1),
       y: Math.floor(imageData.height * 0.1),
       fontSize: 32,
-      fontFamily: 'Arial',
+      fontFamily: availableFonts[0],
       color: '#000000',
       rotation: 0,
       zIndex: texts.length,
@@ -128,6 +229,9 @@ export function TextDialog({ imageData, onConfirm, onCancel }: TextDialogProps) 
     
     setTexts(prev => [...prev, newText]);
     setSelectedTextId(newText.id);
+    
+    // Load the default font for preview
+    loadFontForPreview(newText.fontFamily);
   };
 
   const handleDeleteText = (textId: string) => {
@@ -141,6 +245,11 @@ export function TextDialog({ imageData, onConfirm, onCancel }: TextDialogProps) 
     setTexts(prev => prev.map(t => 
       t.id === textId ? { ...t, [field]: value } : t
     ));
+    
+    // If font family changed, load the font for preview
+    if (field === 'fontFamily' && typeof value === 'string') {
+      loadFontForPreview(value);
+    }
   };
 
   const handleMouseDown = useCallback((e: React.MouseEvent, textId: string, handle: DragHandle) => {
@@ -258,7 +367,7 @@ export function TextDialog({ imageData, onConfirm, onCancel }: TextDialogProps) 
                             left: `${offsetX + text.x * scale}px`,
                             top: `${offsetY + text.y * scale}px`,
                             fontSize: `${text.fontSize * scale}px`,
-                            fontFamily: text.fontFamily,
+                            fontFamily: loadedFonts.has(text.fontFamily) ? sanitizeFontName(text.fontFamily) : 'Arial',
                             color: text.color,
                             transform: `rotate(${text.rotation}deg)`,
                             zIndex: text.zIndex + 10,
@@ -292,13 +401,20 @@ export function TextDialog({ imageData, onConfirm, onCancel }: TextDialogProps) 
                 <button
                   className="text-add-button"
                   onClick={handleAddText}
-                  disabled={isProcessing}
+                  disabled={isProcessing || fontsLoading || availableFonts.length === 0}
+                  title={availableFonts.length === 0 ? '请在 fonts 目录中添加字体文件' : '添加文字'}
                 >
-                  添加文字
+                  {fontsLoading ? '加载字体中...' : '添加文字'}
                 </button>
                 
                 <div className="text-info">
-                  <p>点击文字选择，拖拽移动位置，在右侧调整样式</p>
+                  {fontsLoading ? (
+                    <p>正在加载字体文件...</p>
+                  ) : availableFonts.length === 0 ? (
+                    <p>未找到字体文件，请在 fonts 目录中添加 .ttf、.otf、.ttc、.woff 或 .woff2 字体文件</p>
+                  ) : (
+                    <p>点击文字选择，拖拽移动位置，在右侧调整样式</p>
+                  )}
                 </div>
               </div>
 
@@ -356,10 +472,17 @@ export function TextDialog({ imageData, onConfirm, onCancel }: TextDialogProps) 
                               onChange={(e) => handleTextChange(text.id, 'fontFamily', e.target.value)}
                               onClick={(e) => e.stopPropagation()}
                               className="text-select"
+                              disabled={fontsLoading || availableFonts.length === 0}
                             >
-                              {FONT_FAMILIES.map(font => (
-                                <option key={font} value={font}>{font}</option>
-                              ))}
+                              {fontsLoading ? (
+                                <option value="">加载中...</option>
+                              ) : availableFonts.length === 0 ? (
+                                <option value="">无可用字体</option>
+                              ) : (
+                                availableFonts.map(font => (
+                                  <option key={font} value={font}>{font}</option>
+                                ))
+                              )}
                             </select>
                           </div>
 

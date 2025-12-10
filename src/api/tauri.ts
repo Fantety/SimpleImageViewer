@@ -337,6 +337,15 @@ export async function fileExists(path: string): Promise<boolean> {
 }
 
 /**
+ * Get command line arguments
+ * 
+ * @returns Promise resolving to array of command line arguments
+ */
+export async function getCommandLineArgs(): Promise<string[]> {
+  return await invoke<string[]>('get_command_line_args');
+}
+
+/**
  * Apply stickers to an image
  * 
  * Ensures immutability: creates a snapshot of the original ImageData before the operation
@@ -373,6 +382,33 @@ export async function applyStickers(
   }
   
   return result;
+}
+
+/**
+ * Get available font files from the fonts directory
+ * 
+ * Scans the fonts directory for available font files and returns their names.
+ * Supports: .ttf, .otf, .ttc, .woff, .woff2 files
+ * 
+ * @returns Promise resolving to array of font names (without file extensions)
+ */
+export async function getAvailableFonts(): Promise<string[]> {
+  return await invoke<string[]>('get_available_fonts');
+}
+
+export interface FontData {
+  data: string;    // Base64 encoded font data
+  format: string;  // Font format (ttf, otf, woff, woff2, etc.)
+}
+
+/**
+ * Get font file data as Base64 for web font loading
+ * 
+ * @param fontName - Name of the font file (without extension)
+ * @returns Promise resolving to font data with format information
+ */
+export async function getFontData(fontName: string): Promise<FontData> {
+  return await invoke<FontData>('get_font_data', { fontName });
 }
 
 /**

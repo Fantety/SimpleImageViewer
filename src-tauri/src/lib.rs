@@ -1061,6 +1061,7 @@ async fn apply_texts(
             text_data.y,
             text_data.font_size,
             color,
+            &text_data.font_family,
             text_data.rotation,
         )?;
     }
@@ -1113,7 +1114,7 @@ fn parse_hex_color(hex: &str) -> Result<(u8, u8, u8), String> {
     Ok((r, g, b))
 }
 
-/// Render text on image using font files from src-tauri/fonts directory
+/// Render text on image using font files from fonts directory
 fn render_text_on_image(
     image: &mut image::RgbaImage,
     text: &str,
@@ -1121,13 +1122,14 @@ fn render_text_on_image(
     y: u32,
     font_size: u32,
     color: (u8, u8, u8),
+    font_family: &str,
     _rotation: f32, // TODO: Implement rotation
 ) -> Result<(), String> {
     use ab_glyph::PxScale;
     use imageproc::drawing::draw_text_mut;
     
-    // Try to load a font from the fonts directory
-    let font = load_font_from_directory()?;
+    // Try to load the specific font by name
+    let font = load_font_by_name(font_family)?;
     
     // Set font scale
     let scale = PxScale::from(font_size as f32);
@@ -1144,11 +1146,107 @@ fn render_text_on_image(
         text,
     );
     
-    println!("Successfully rendered text '{}' using font", text);
+    println!("Successfully rendered text '{}' using font '{}'", text, font_family);
     Ok(())
 }
 
-/// Load font from fonts directory (bundled with the app)
+/// Load a specific font by name from fonts directory
+fn load_font_by_name(font_name: &str) -> Result<ab_glyph::FontArc, String> {
+    use ab_glyph::FontArc;
+    use std::fs;
+    use std::path::Path;
+    
+    // Try development location first
+    let dev_fonts_dir = Path::new("src-tauri/fonts");
+    if dev_fonts_dir.exists() {
+        if let Ok(font) = load_font_by_name_from_path(dev_fonts_dir, font_name) {
+            return Ok(font);
+        }
+    }
+    
+    // For bundled app, try relative to executable
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let bundled_fonts_dir = exe_dir.join("fonts");
+            if bundled_fonts_dir.exists() {
+                if let Ok(font) = load_font_by_name_from_path(&bundled_fonts_dir, font_name) {
+                    return Ok(font);
+                }
+            }
+        }
+    }
+    
+    // Try other possible locations
+    let possible_paths = vec![
+        Path::new("fonts"),
+        Path::new("../fonts"),
+        Path::new("./fonts"),
+    ];
+    
+    for path in &possible_paths {
+        if path.exists() {
+            if let Ok(font) = load_font_by_name_from_path(path, font_name) {
+                return Ok(font);
+            }
+        }
+    }
+    
+    Err(format!("Font '{}' not found in any fonts directory", font_name))
+}
+
+/// Load font by name from a specific directory path
+fn load_font_by_name_from_path(fonts_dir: &Path, font_name: &str) -> Result<ab_glyph::FontArc, String> {
+    use ab_glyph::FontArc;
+    use std::fs;
+    
+    // Supported font file extensions
+    let font_extensions = vec!["ttf", "otf", "ttc", "woff", "woff2"];
+    
+    let entries = fs::read_dir(fonts_dir)
+        .map_err(|e| format!("Failed to read fonts directory: {}", e))?;
+    
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            
+            // Check if it's a font file
+            if let Some(extension) = path.extension() {
+                if let Some(ext_str) = extension.to_str() {
+                    if font_extensions.contains(&ext_str.to_lowercase().as_str()) {
+                        if let Some(file_stem) = path.file_stem() {
+                            if let Some(file_name) = file_stem.to_str() {
+                                // Check if this is the font we're looking for
+                                if file_name == font_name {
+                                    // Try to load this font file
+                                    match fs::read(&path) {
+                                        Ok(font_data) => {
+                                            match FontArc::try_from_vec(font_data) {
+                                                Ok(font) => {
+                                                    println!("Successfully loaded font: {:?}", path.file_name());
+                                                    return Ok(font);
+                                                }
+                                                Err(e) => {
+                                                    println!("Failed to parse font {:?}: {}", path.file_name(), e);
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            println!("Failed to read font file {:?}: {}", path.file_name(), e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Err(format!("Font '{}' not found in directory '{}'", font_name, fonts_dir.display()))
+}
+
+/// Load font from fonts directory (bundled with the app) - fallback function
 fn load_font_from_directory() -> Result<ab_glyph::FontArc, String> {
     use ab_glyph::FontArc;
     use std::fs;
@@ -1244,6 +1342,184 @@ fn load_font_from_path(fonts_dir: &Path) -> Result<ab_glyph::FontArc, String> {
 
 
 
+/// Get available font files from the fonts directory
+#[tauri::command]
+async fn get_available_fonts() -> Result<Vec<String>, String> {
+    use std::fs;
+    use std::path::Path;
+    
+    // Try development location first
+    let dev_fonts_dir = Path::new("src-tauri/fonts");
+    if dev_fonts_dir.exists() {
+        return get_fonts_from_path(dev_fonts_dir);
+    }
+    
+    // For bundled app, try relative to executable
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to get executable path: {}", e))?;
+    
+    let exe_dir = exe_path.parent()
+        .ok_or("Failed to get executable directory")?;
+    
+    // Try fonts directory relative to executable
+    let bundled_fonts_dir = exe_dir.join("fonts");
+    if bundled_fonts_dir.exists() {
+        return get_fonts_from_path(&bundled_fonts_dir);
+    }
+    
+    // Try other possible locations
+    let possible_paths = vec![
+        Path::new("fonts"),
+        Path::new("../fonts"),
+        Path::new("./fonts"),
+    ];
+    
+    for path in &possible_paths {
+        if path.exists() {
+            return get_fonts_from_path(path);
+        }
+    }
+    
+    Ok(vec![]) // Return empty list if no fonts directory found
+}
+
+/// Get font file names from a specific directory path
+fn get_fonts_from_path(fonts_dir: &Path) -> Result<Vec<String>, String> {
+    use std::fs;
+    
+    // Supported font file extensions
+    let font_extensions = vec!["ttf", "otf", "ttc", "woff", "woff2"];
+    
+    let entries = fs::read_dir(fonts_dir)
+        .map_err(|e| format!("Failed to read fonts directory: {}", e))?;
+    
+    let mut font_names = Vec::new();
+    
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            
+            // Check if it's a font file
+            if let Some(extension) = path.extension() {
+                if let Some(ext_str) = extension.to_str() {
+                    if font_extensions.contains(&ext_str.to_lowercase().as_str()) {
+                        if let Some(file_name) = path.file_stem() {
+                            if let Some(name_str) = file_name.to_str() {
+                                font_names.push(name_str.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Sort font names alphabetically
+    font_names.sort();
+    
+    Ok(font_names)
+}
+
+/// Font data with format information
+#[derive(serde::Serialize)]
+pub struct FontData {
+    pub data: String,      // Base64 encoded font data
+    pub format: String,    // Font format (ttf, otf, woff, woff2, etc.)
+}
+
+/// Get font file data as Base64 for web font loading
+#[tauri::command]
+async fn get_font_data(font_name: String) -> Result<FontData, String> {
+    use std::fs;
+    use std::path::Path;
+    use base64::{Engine as _, engine::general_purpose};
+    
+    // Supported font file extensions
+    let font_extensions = vec!["ttf", "otf", "ttc", "woff", "woff2"];
+    
+    // Try development location first
+    let dev_fonts_dir = Path::new("src-tauri/fonts");
+    if dev_fonts_dir.exists() {
+        if let Ok(data) = get_font_data_from_path(dev_fonts_dir, &font_name, &font_extensions) {
+            return Ok(data);
+        }
+    }
+    
+    // For bundled app, try relative to executable
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let bundled_fonts_dir = exe_dir.join("fonts");
+            if bundled_fonts_dir.exists() {
+                if let Ok(data) = get_font_data_from_path(&bundled_fonts_dir, &font_name, &font_extensions) {
+                    return Ok(data);
+                }
+            }
+        }
+    }
+    
+    // Try other possible locations
+    let possible_paths = vec![
+        Path::new("fonts"),
+        Path::new("../fonts"),
+        Path::new("./fonts"),
+    ];
+    
+    for path in &possible_paths {
+        if path.exists() {
+            if let Ok(data) = get_font_data_from_path(path, &font_name, &font_extensions) {
+                return Ok(data);
+            }
+        }
+    }
+    
+    Err(format!("Font file '{}' not found", font_name))
+}
+
+/// Get font file data from a specific directory path
+fn get_font_data_from_path(fonts_dir: &Path, font_name: &str, font_extensions: &[&str]) -> Result<FontData, String> {
+    use std::fs;
+    use base64::{Engine as _, engine::general_purpose};
+    
+    let entries = fs::read_dir(fonts_dir)
+        .map_err(|e| format!("Failed to read fonts directory: {}", e))?;
+    
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            
+            // Check if it's a font file
+            if let Some(extension) = path.extension() {
+                if let Some(ext_str) = extension.to_str() {
+                    if font_extensions.contains(&ext_str.to_lowercase().as_str()) {
+                        if let Some(file_stem) = path.file_stem() {
+                            if let Some(file_name) = file_stem.to_str() {
+                                // Check if this is the font we're looking for
+                                if file_name == font_name {
+                                    // Read font file and encode to Base64
+                                    match fs::read(&path) {
+                                        Ok(font_data) => {
+                                            let base64_data = general_purpose::STANDARD.encode(&font_data);
+                                            return Ok(FontData {
+                                                data: base64_data,
+                                                format: ext_str.to_lowercase(),
+                                            });
+                                        }
+                                        Err(e) => {
+                                            return Err(format!("Failed to read font file: {}", e));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Err(format!("Font '{}' not found in directory", font_name))
+}
+
 /// Get command line arguments
 #[tauri::command]
 async fn get_command_line_args() -> Result<Vec<String>, String> {
@@ -1279,6 +1555,8 @@ pub fn run() {
             search_favorites_by_tags,
             get_all_tags,
             file_exists,
+            get_available_fonts,
+            get_font_data,
             get_command_line_args
         ])
         .run(tauri::generate_context!())

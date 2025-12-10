@@ -4,7 +4,7 @@ import { useAppState } from '../contexts/AppStateContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
 import { useImageZoom } from '../hooks/useImageZoom';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites, applyStickers, applyTexts } from '../api/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites, applyStickers, applyTexts, getCommandLineArgs } from '../api/tauri';
 import type { ImageFormat, ConversionOptions, RGBColor, StickerData, TextData } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
@@ -1008,13 +1008,56 @@ export const ImageViewer: React.FC = () => {
 
 
   /**
-   * Load favorites on startup
+   * Handle command line arguments on startup
+   * When user double-clicks an image file, the file path is passed as a command line argument
+   */
+  useEffect(() => {
+    const handleCommandLineArgs = async () => {
+      try {
+        const args = await getCommandLineArgs();
+        console.log('Command line arguments:', args);
+        
+        // Look for image file paths in arguments
+        for (const arg of args) {
+          // Skip flags and options (starting with -)
+          if (arg.startsWith('-')) {
+            continue;
+          }
+          
+          // Check if the argument is a file path that exists
+          try {
+            await loadImage(arg);
+            console.log('Loading image from command line:', arg);
+            await loadImageFromPath(arg, true);
+            return; // Successfully loaded image, exit early
+          } catch (error) {
+            // Not a valid image file, continue to next argument
+            console.log('Argument is not a valid image file:', arg);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to process command line arguments:', error);
+      }
+    };
+
+    handleCommandLineArgs();
+  }, []); // Only run once on mount
+
+
+
+  /**
+   * Load favorites on startup (fallback if no command line arguments)
    */
   useEffect(() => {
     const loadInitialFavorites = async () => {
       try {
+        // Only load favorites if no image is already loaded (from command line args)
+        if (state.currentImage) {
+          return;
+        }
+        
         const favorites = await getAllFavorites();
-        if (favorites.length > 0 && !state.currentImage) {
+        if (favorites.length > 0) {
           // Load the first favorite image
           await loadImageFromPath(favorites[0].path, false);
         }
@@ -1023,7 +1066,9 @@ export const ImageViewer: React.FC = () => {
       }
     };
 
-    loadInitialFavorites();
+    // Add a small delay to let command line args processing complete first
+    const timer = setTimeout(loadInitialFavorites, 100);
+    return () => clearTimeout(timer);
   }, []); // Only run once on mount
 
   /**
