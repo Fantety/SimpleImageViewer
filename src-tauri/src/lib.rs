@@ -1053,8 +1053,8 @@ async fn apply_texts(
                 format!("Text {} has invalid color '{}': {}", index, text_data.color, e)
             ))?;
         
-        // Try to render text using proper font rendering
-        if let Err(e) = render_text_on_image(
+        // Render text using font files
+        render_text_on_image(
             &mut base_rgba,
             &text_data.text,
             text_data.x,
@@ -1062,18 +1062,7 @@ async fn apply_texts(
             text_data.font_size,
             color,
             text_data.rotation,
-        ) {
-            println!("Font rendering failed: {}, falling back to bitmap rendering", e);
-            // Fall back to bitmap rendering
-            render_text_bitmap_fallback(
-                &mut base_rgba,
-                &text_data.text,
-                text_data.x,
-                text_data.y,
-                text_data.font_size,
-                color,
-            )?;
-        }
+        )?;
     }
     
     // Convert back to DynamicImage
@@ -1124,7 +1113,7 @@ fn parse_hex_color(hex: &str) -> Result<(u8, u8, u8), String> {
     Ok((r, g, b))
 }
 
-/// Render text on image using proper font rendering
+/// Render text on image using font files from src-tauri/fonts directory
 fn render_text_on_image(
     image: &mut image::RgbaImage,
     text: &str,
@@ -1137,9 +1126,10 @@ fn render_text_on_image(
     use ab_glyph::PxScale;
     use imageproc::drawing::draw_text_mut;
     
-    // Try to use a system font that supports Chinese characters
-    let font = get_system_font()?;
+    // Try to load a font from the fonts directory
+    let font = load_font_from_directory()?;
     
+    // Set font scale
     let scale = PxScale::from(font_size as f32);
     let text_color = image::Rgba([color.0, color.1, color.2, 255]);
     
@@ -1154,150 +1144,90 @@ fn render_text_on_image(
         text,
     );
     
+    println!("Successfully rendered text '{}' using font", text);
     Ok(())
 }
 
-/// Get a system font that supports Chinese characters
-fn get_system_font() -> Result<ab_glyph::FontArc, String> {
+/// Load font from fonts directory (bundled with the app)
+fn load_font_from_directory() -> Result<ab_glyph::FontArc, String> {
     use ab_glyph::FontArc;
-    use font_kit::source::SystemSource;
-    use font_kit::family_name::FamilyName;
-    use font_kit::properties::Properties;
+    use std::fs;
+    use std::path::Path;
     
-    let source = SystemSource::new();
+    // Try development location first
+    let dev_fonts_dir = Path::new("src-tauri/fonts");
+    if dev_fonts_dir.exists() {
+        return load_font_from_path(dev_fonts_dir);
+    }
     
-    // Try to find fonts that support Chinese characters
-    let preferred_families = vec![
-        // Chinese fonts
-        FamilyName::Title("PingFang SC".to_string()),      // macOS Chinese
-        FamilyName::Title("Microsoft YaHei".to_string()),  // Windows Chinese
-        FamilyName::Title("SimHei".to_string()),           // Windows Chinese
-        FamilyName::Title("Noto Sans CJK SC".to_string()), // Linux Chinese
-        FamilyName::Title("Source Han Sans SC".to_string()), // Cross-platform Chinese
-        FamilyName::Title("WenQuanYi Micro Hei".to_string()), // Linux Chinese
-        // Fallback fonts
-        FamilyName::Title("Arial Unicode MS".to_string()), // Unicode support
-        FamilyName::SansSerif,                             // System sans-serif
-        FamilyName::Title("Arial".to_string()),            // Common fallback
-        FamilyName::Title("Helvetica".to_string()),        // macOS fallback
-        FamilyName::Title("DejaVu Sans".to_string()),      // Linux fallback
+    // For bundled app, try relative to executable
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to get executable path: {}", e))?;
+    
+    let exe_dir = exe_path.parent()
+        .ok_or("Failed to get executable directory")?;
+    
+    // Try fonts directory relative to executable
+    let bundled_fonts_dir = exe_dir.join("fonts");
+    if bundled_fonts_dir.exists() {
+        return load_font_from_path(&bundled_fonts_dir);
+    }
+    
+    // Try other possible locations
+    let possible_paths = vec![
+        Path::new("fonts"),                    // Current directory
+        Path::new("../fonts"),                 // Parent directory
+        Path::new("./fonts"),                  // Explicit current directory
     ];
     
-    for family in preferred_families {
-        if let Ok(handle) = source.select_best_match(&[family], &Properties::new()) {
-            if let Ok(font) = handle.load() {
-                // Try to get font data as bytes
-                if let Some(font_data) = font.copy_font_data() {
-                    if let Ok(font_arc) = FontArc::try_from_vec((*font_data).clone()) {
-                        println!("Successfully loaded system font");
-                        return Ok(font_arc);
-                    }
-                }
-            }
+    for path in &possible_paths {
+        if path.exists() {
+            return load_font_from_path(path);
         }
     }
     
-    println!("No suitable system font found, trying fallback methods");
-    get_embedded_font()
+    Err(format!("Fonts directory not found. Tried locations: {:?}, {:?}, and other standard paths. Please ensure font files are bundled with the application.", 
+               dev_fonts_dir, bundled_fonts_dir))
 }
 
-/// Get an embedded fallback font
-fn get_embedded_font() -> Result<ab_glyph::FontArc, String> {
+/// Load font from a specific directory path
+fn load_font_from_path(fonts_dir: &Path) -> Result<ab_glyph::FontArc, String> {
     use ab_glyph::FontArc;
-    use font_kit::source::SystemSource;
-    use font_kit::family_name::FamilyName;
-    use font_kit::properties::Properties;
+    use std::fs;
     
-    // As a last resort, try to get any available system font
-    let source = SystemSource::new();
+    // Supported font file extensions
+    let font_extensions = vec!["ttf", "otf", "ttc", "woff", "woff2"];
     
-    // Try to get any available font as absolute fallback
-    let fallback_families = vec![
-        FamilyName::Serif,
-        FamilyName::SansSerif,
-        FamilyName::Monospace,
-    ];
+    // Try to read font files from the directory
+    let entries = fs::read_dir(fonts_dir)
+        .map_err(|e| format!("Failed to read fonts directory: {}", e))?;
     
-    for family in fallback_families {
-        if let Ok(handle) = source.select_best_match(&[family], &Properties::new()) {
-            if let Ok(font) = handle.load() {
-                // Try to get font data as bytes
-                if let Some(font_data) = font.copy_font_data() {
-                    if let Ok(font_arc) = FontArc::try_from_vec((*font_data).clone()) {
-                        println!("Using fallback system font");
-                        return Ok(font_arc);
-                    }
-                }
-            }
-        }
-    }
-    
-    println!("Warning: No system fonts available, falling back to bitmap rendering");
-    Err("No system fonts available".to_string())
-}
-
-
-
-/// Fallback bitmap text rendering
-fn render_text_bitmap_fallback(
-    image: &mut image::RgbaImage,
-    text: &str,
-    x: u32,
-    y: u32,
-    font_size: u32,
-    color: (u8, u8, u8),
-) -> Result<(), String> {
-    // Simple bitmap font rendering as fallback
-    let char_width = (font_size * 3) / 4;
-    let char_height = font_size;
-    let char_spacing = char_width + (font_size / 8).max(2);
-    
-    for (i, ch) in text.chars().enumerate() {
-        let char_x = x + (i as u32 * char_spacing);
-        let char_y = y;
-        
-        render_char_bitmap(image, ch, char_x, char_y, char_width, char_height, color)?;
-    }
-    
-    Ok(())
-}
-
-/// Render a single character using a simple bitmap pattern
-fn render_char_bitmap(
-    image: &mut image::RgbaImage,
-    ch: char,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-    color: (u8, u8, u8),
-) -> Result<(), String> {
-    // Simple 5x7 bitmap patterns for basic characters
-    let pattern = get_char_pattern(ch);
-    
-    // Calculate scaling factors, ensuring minimum size
-    let scale_x = (width / 5).max(1);
-    let scale_y = (height / 7).max(1);
-    
-    // Debug: Add some logging to see what's happening
-    println!("Rendering char '{}' at ({}, {}) with size {}x{}, scale {}x{}", 
-             ch, x, y, width, height, scale_x, scale_y);
-    
-    for (row, &pattern_row) in pattern.iter().enumerate() {
-        for col in 0..5 {
-            if (pattern_row >> (4 - col)) & 1 == 1 {
-                // Draw scaled pixel block
-                for dy in 0..scale_y {
-                    for dx in 0..scale_x {
-                        let px = x + (col as u32 * scale_x) + dx;
-                        let py = y + (row as u32 * scale_y) + dy;
-                        
-                        if px < image.width() && py < image.height() {
-                            let pixel = image.get_pixel_mut(px, py);
-                            pixel.0[0] = color.0;
-                            pixel.0[1] = color.1;
-                            pixel.0[2] = color.2;
-                            pixel.0[3] = 255;
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            
+            // Check if it's a font file
+            if let Some(extension) = path.extension() {
+                if let Some(ext_str) = extension.to_str() {
+                    if font_extensions.contains(&ext_str.to_lowercase().as_str()) {
+                        // Try to load this font file
+                        match fs::read(&path) {
+                            Ok(font_data) => {
+                                match FontArc::try_from_vec(font_data) {
+                                    Ok(font) => {
+                                        println!("Successfully loaded font: {:?}", path.file_name());
+                                        return Ok(font);
+                                    }
+                                    Err(e) => {
+                                        println!("Failed to parse font {:?}: {}", path.file_name(), e);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                println!("Failed to read font file {:?}: {}", path.file_name(), e);
+                                continue;
+                            }
                         }
                     }
                 }
@@ -1305,141 +1235,12 @@ fn render_char_bitmap(
         }
     }
     
-    Ok(())
+    Err(format!("No valid font files found in '{}' directory. Please add .ttf, .otf, .ttc, .woff, or .woff2 files.", fonts_dir.display()))
 }
 
-/// Get bitmap pattern for a character (5x7 bitmap)
-fn get_char_pattern(ch: char) -> [u8; 7] {
-    match ch {
-        'A' => [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b00000],
-        'B' => [0b11110, 0b10001, 0b11110, 0b11110, 0b10001, 0b11110, 0b00000],
-        'C' => [0b01111, 0b10000, 0b10000, 0b10000, 0b10000, 0b01111, 0b00000],
-        'D' => [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110, 0b00000],
-        'E' => [0b11111, 0b10000, 0b11110, 0b11110, 0b10000, 0b11111, 0b00000],
-        'F' => [0b11111, 0b10000, 0b11110, 0b11110, 0b10000, 0b10000, 0b00000],
-        'G' => [0b01111, 0b10000, 0b10011, 0b10001, 0b10001, 0b01111, 0b00000],
-        'H' => [0b10001, 0b10001, 0b11111, 0b11111, 0b10001, 0b10001, 0b00000],
-        'I' => [0b01110, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110, 0b00000],
-        'J' => [0b00111, 0b00001, 0b00001, 0b10001, 0b10001, 0b01110, 0b00000],
-        'K' => [0b10001, 0b10010, 0b11100, 0b11100, 0b10010, 0b10001, 0b00000],
-        'L' => [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111, 0b00000],
-        'M' => [0b10001, 0b11011, 0b10101, 0b10001, 0b10001, 0b10001, 0b00000],
-        'N' => [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b00000],
-        'O' => [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110, 0b00000],
-        'P' => [0b11110, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000, 0b00000],
-        'Q' => [0b01110, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101, 0b00000],
-        'R' => [0b11110, 0b10001, 0b11110, 0b10010, 0b10001, 0b10001, 0b00000],
-        'S' => [0b01111, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110, 0b00000],
-        'T' => [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00000],
-        'U' => [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110, 0b00000],
-        'V' => [0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100, 0b00000],
-        'W' => [0b10001, 0b10001, 0b10001, 0b10101, 0b11011, 0b10001, 0b00000],
-        'X' => [0b10001, 0b01010, 0b00100, 0b00100, 0b01010, 0b10001, 0b00000],
-        'Y' => [0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100, 0b00000],
-        'Z' => [0b11111, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111, 0b00000],
-        '0' => [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b01110, 0b00000],
-        '1' => [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b01110, 0b00000],
-        '2' => [0b01110, 0b10001, 0b00010, 0b00100, 0b01000, 0b11111, 0b00000],
-        '3' => [0b01110, 0b10001, 0b00110, 0b00001, 0b10001, 0b01110, 0b00000],
-        '4' => [0b00010, 0b00110, 0b01010, 0b11111, 0b00010, 0b00010, 0b00000],
-        '5' => [0b11111, 0b10000, 0b11110, 0b00001, 0b10001, 0b01110, 0b00000],
-        '6' => [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110, 0b00000],
-        '7' => [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b00000],
-        '8' => [0b01110, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110, 0b00000],
-        '9' => [0b01110, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110, 0b00000],
-        ' ' => [0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000],
-        '!' => [0b00100, 0b00100, 0b00100, 0b00100, 0b00000, 0b00100, 0b00000],
-        '?' => [0b01110, 0b10001, 0b00010, 0b00100, 0b00000, 0b00100, 0b00000],
-        '.' => [0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00100, 0b00000],
-        ',' => [0b00000, 0b00000, 0b00000, 0b00000, 0b00100, 0b01000, 0b00000],
-        ':' => [0b00000, 0b00100, 0b00000, 0b00000, 0b00100, 0b00000, 0b00000],
-        ';' => [0b00000, 0b00100, 0b00000, 0b00000, 0b00100, 0b01000, 0b00000],
-        '-' => [0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000],
-        '+' => [0b00000, 0b00100, 0b01110, 0b00100, 0b00000, 0b00000, 0b00000],
-        '=' => [0b00000, 0b11111, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000],
-        '(' => [0b00010, 0b00100, 0b01000, 0b01000, 0b00100, 0b00010, 0b00000],
-        ')' => [0b01000, 0b00100, 0b00010, 0b00010, 0b00100, 0b01000, 0b00000],
-        '[' => [0b01110, 0b01000, 0b01000, 0b01000, 0b01000, 0b01110, 0b00000],
-        ']' => [0b01110, 0b00010, 0b00010, 0b00010, 0b00010, 0b01110, 0b00000],
-        '/' => [0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b00000, 0b00000],
-        '\\' => [0b10000, 0b01000, 0b00100, 0b00010, 0b00001, 0b00000, 0b00000],
-        // Lowercase letters (simplified patterns)
-        'a' => [0b00000, 0b01110, 0b00001, 0b01111, 0b10001, 0b01111, 0b00000],
-        'b' => [0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b11110, 0b00000],
-        'c' => [0b00000, 0b01111, 0b10000, 0b10000, 0b10000, 0b01111, 0b00000],
-        'd' => [0b00001, 0b00001, 0b01111, 0b10001, 0b10001, 0b01111, 0b00000],
-        'e' => [0b00000, 0b01110, 0b10001, 0b11111, 0b10000, 0b01111, 0b00000],
-        'f' => [0b00111, 0b01000, 0b11110, 0b01000, 0b01000, 0b01000, 0b00000],
-        'g' => [0b00000, 0b01111, 0b10001, 0b01111, 0b00001, 0b01110, 0b00000],
-        'h' => [0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b00000],
-        'i' => [0b00100, 0b00000, 0b01100, 0b00100, 0b00100, 0b01110, 0b00000],
-        'j' => [0b00010, 0b00000, 0b00110, 0b00010, 0b10010, 0b01100, 0b00000],
-        'k' => [0b10000, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b00000],
-        'l' => [0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110, 0b00000],
-        'm' => [0b00000, 0b11010, 0b10101, 0b10101, 0b10101, 0b10101, 0b00000],
-        'n' => [0b00000, 0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b00000],
-        'o' => [0b00000, 0b01110, 0b10001, 0b10001, 0b10001, 0b01110, 0b00000],
-        'p' => [0b00000, 0b11110, 0b10001, 0b11110, 0b10000, 0b10000, 0b00000],
-        'q' => [0b00000, 0b01111, 0b10001, 0b01111, 0b00001, 0b00001, 0b00000],
-        'r' => [0b00000, 0b10110, 0b11001, 0b10000, 0b10000, 0b10000, 0b00000],
-        's' => [0b00000, 0b01111, 0b10000, 0b01110, 0b00001, 0b11110, 0b00000],
-        't' => [0b01000, 0b11110, 0b01000, 0b01000, 0b01001, 0b00110, 0b00000],
-        'u' => [0b00000, 0b10001, 0b10001, 0b10001, 0b10011, 0b01101, 0b00000],
-        'v' => [0b00000, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100, 0b00000],
-        'w' => [0b00000, 0b10001, 0b10101, 0b10101, 0b10101, 0b01010, 0b00000],
-        'x' => [0b00000, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000],
-        'y' => [0b00000, 0b10001, 0b10001, 0b01111, 0b00001, 0b01110, 0b00000],
-        'z' => [0b00000, 0b11111, 0b00010, 0b00100, 0b01000, 0b11111, 0b00000],
-        // Common Chinese characters (simplified patterns)
-        '新' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "new"
-        '文' => [0b11111, 0b00100, 0b01110, 0b10101, 0b01110, 0b00100, 0b00000], // "text/culture"
-        '字' => [0b11111, 0b10001, 0b01110, 0b00100, 0b01110, 0b10001, 0b00000], // "character"
-        '你' => [0b10001, 0b11111, 0b10001, 0b01110, 0b10001, 0b11111, 0b00000], // "you"
-        '好' => [0b10101, 0b11111, 0b10101, 0b01110, 0b10101, 0b11111, 0b00000], // "good"
-        '我' => [0b11111, 0b01010, 0b11111, 0b01010, 0b11111, 0b01010, 0b00000], // "I/me"
-        '是' => [0b11111, 0b10001, 0b11111, 0b00100, 0b11111, 0b10001, 0b00000], // "is/am"
-        '的' => [0b01110, 0b10001, 0b01110, 0b00100, 0b01110, 0b10001, 0b00000], // possessive particle
-        '在' => [0b11111, 0b00100, 0b11111, 0b00100, 0b11111, 0b00100, 0b00000], // "at/in"
-        '有' => [0b11111, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b00000], // "have"
-        '中' => [0b01110, 0b00100, 0b11111, 0b00100, 0b11111, 0b00100, 0b00000], // "middle/China"
-        '国' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "country"
-        '人' => [0b00100, 0b01010, 0b10001, 0b10001, 0b10001, 0b10001, 0b00000], // "person"
-        '大' => [0b00100, 0b01010, 0b10001, 0b11111, 0b10001, 0b10001, 0b00000], // "big"
-        '小' => [0b00100, 0b01010, 0b10001, 0b01010, 0b00100, 0b00000, 0b00000], // "small"
-        '上' => [0b00100, 0b00100, 0b00100, 0b11111, 0b00000, 0b00000, 0b00000], // "up/above"
-        '下' => [0b00000, 0b00000, 0b11111, 0b00100, 0b00100, 0b00100, 0b00000], // "down/below"
-        '来' => [0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b11111, 0b00000], // "come"
-        '去' => [0b11111, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000], // "go"
-        '看' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "look/see"
-        '说' => [0b11111, 0b10001, 0b01110, 0b10001, 0b01110, 0b10001, 0b00000], // "say/speak"
-        '做' => [0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b00000], // "do/make"
-        '会' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "can/will"
-        '要' => [0b11111, 0b10001, 0b11111, 0b01110, 0b11111, 0b10001, 0b00000], // "want/need"
-        '不' => [0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000, 0b00000], // "not"
-        '了' => [0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000, 0b00000], // completion particle
-        '和' => [0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b00000], // "and"
-        '也' => [0b10001, 0b01010, 0b11111, 0b01010, 0b10001, 0b00000, 0b00000], // "also"
-        '都' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "all"
-        '很' => [0b10001, 0b11111, 0b10001, 0b01110, 0b10001, 0b11111, 0b00000], // "very"
-        '多' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "many/much"
-        '少' => [0b01110, 0b10001, 0b01110, 0b10001, 0b01110, 0b10001, 0b00000], // "few/little"
-        '年' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "year"
-        '月' => [0b11111, 0b10001, 0b10001, 0b10001, 0b10001, 0b11111, 0b00000], // "month"
-        '日' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "day/sun"
-        '时' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "time"
-        // For other Chinese characters and Unicode characters
-        _ => {
-            let code = ch as u32;
-            if code >= 0x4E00 && code <= 0x9FFF {
-                // Chinese character not in our list - use a generic Chinese character pattern
-                [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000]
-            } else {
-                // Other unknown characters - use a different pattern
-                [0b11111, 0b10101, 0b11111, 0b10101, 0b11111, 0b10101, 0b00000]
-            }
-        }
-    }
-}
+
+
+
 
 
 
