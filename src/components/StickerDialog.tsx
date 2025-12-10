@@ -17,6 +17,8 @@ interface DragState {
   startX: number;
   startY: number;
   initialSticker: StickerData | null;
+  lastAngle?: number; // 用于跟踪上一次的角度，避免角度跳跃
+  accumulatedRotation?: number; // 累积的旋转角度
 }
 
 export function StickerDialog({ imageData, onConfirm, onCancel }: StickerDialogProps) {
@@ -155,6 +157,8 @@ export function StickerDialog({ imageData, onConfirm, onCancel }: StickerDialogP
       startX: e.clientX,
       startY: e.clientY,
       initialSticker: { ...sticker },
+      lastAngle: undefined, // Reset for rotation tracking
+      accumulatedRotation: 0, // Reset accumulated rotation
     });
   }, [stickers]);
 
@@ -194,16 +198,8 @@ export function StickerDialog({ imageData, onConfirm, onCancel }: StickerDialogP
         updatedSticker.width = Math.max(20, dragState.initialSticker.width + dx);
         updatedSticker.height = Math.max(20, dragState.initialSticker.height + dy);
       } else if (dragState.handle === 'rotate') {
-        // Calculate rotation based on mouse position relative to sticker center
-        const centerX = dragState.initialSticker.x + dragState.initialSticker.width / 2;
-        const centerY = dragState.initialSticker.y + dragState.initialSticker.height / 2;
-        
-        const angle = Math.atan2(
-          (dragState.startY / scale) + dy - centerY,
-          (dragState.startX / scale) + dx - centerX
-        ) * (180 / Math.PI);
-        
-        updatedSticker.rotation = angle;
+        // 旋转手柄现在只用于点击旋转90度，拖拽功能已移除
+        // 精确旋转请使用右侧列表中的滑动条
       }
 
       setStickers(prev => prev.map(s => s.id === dragState.initialSticker!.id ? updatedSticker : s));
@@ -324,6 +320,14 @@ export function StickerDialog({ imageData, onConfirm, onCancel }: StickerDialogP
                               <div
                                 className="sticker-handle sticker-handle-rotate"
                                 onMouseDown={(e) => handleMouseDown(e, sticker.id, 'rotate')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Quick rotate by 90 degrees on click
+                                  const updatedSticker = { ...sticker };
+                                  updatedSticker.rotation = (sticker.rotation + 90) % 360;
+                                  setStickers(prev => prev.map(s => s.id === sticker.id ? updatedSticker : s));
+                                }}
+                                title="拖拽旋转或点击旋转90°"
                               />
                               
                               {/* Delete button */}
@@ -394,21 +398,37 @@ export function StickerDialog({ imageData, onConfirm, onCancel }: StickerDialogP
                           <div className="sticker-list-item-name">贴纸 {index + 1}</div>
                           <div className="sticker-list-item-details">
                             {Math.round(sticker.width)} × {Math.round(sticker.height)}
-                            {sticker.rotation !== 0 && (
-                              <span> · {Math.round(sticker.rotation)}°</span>
-                            )}
+                          </div>
+                          <div className="sticker-list-item-rotation">
+                            <label>旋转: {Math.round(sticker.rotation)}°</label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="360"
+                              value={sticker.rotation}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const updatedSticker = { ...sticker };
+                                updatedSticker.rotation = parseFloat(e.target.value);
+                                setStickers(prev => prev.map(s => s.id === sticker.id ? updatedSticker : s));
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="sticker-rotation-slider"
+                            />
                           </div>
                         </div>
-                        <button
-                          className="sticker-list-item-delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSticker(sticker.id);
-                          }}
-                          title="删除贴纸"
-                        >
-                          ×
-                        </button>
+                        <div className="sticker-list-item-actions">
+                          <button
+                            className="sticker-list-item-delete"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSticker(sticker.id);
+                            }}
+                            title="删除贴纸"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
