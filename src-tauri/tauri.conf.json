@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Simple Image Viewer",
         "width": 900,
         "height": 600,

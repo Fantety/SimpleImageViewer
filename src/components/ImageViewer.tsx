@@ -1008,40 +1008,69 @@ export const ImageViewer: React.FC = () => {
 
 
   /**
-   * Handle command line arguments on startup
-   * When user double-clicks an image file, the file path is passed as a command line argument
+   * Handle file opening via single-instance plugin (for file associations)
+   * When user opens an image file with this app, the file path is passed via event
    */
   useEffect(() => {
-    const handleCommandLineArgs = async () => {
+    let unlistenFn: (() => void) | null = null;
+    
+    const setupFileOpenListener = async () => {
       try {
-        const args = await getCommandLineArgs();
-        console.log('Command line arguments:', args);
+        const { listen } = await import('@tauri-apps/api/event');
         
-        // Look for image file paths in arguments
-        for (const arg of args) {
-          // Skip flags and options (starting with -)
-          if (arg.startsWith('-')) {
-            continue;
-          }
+        // Listen for open-file events from single-instance plugin
+        unlistenFn = await listen<string>('open-file', async (event) => {
+          console.log('=== OPEN-FILE EVENT RECEIVED ===');
+          console.log('Event payload:', event.payload);
+          console.log('Event payload type:', typeof event.payload);
+          console.log('Event full object:', event);
           
-          // Check if the argument is a file path that exists
+          const filePath = event.payload;
+          
+          if (filePath && typeof filePath === 'string') {
+            console.log('Processing file path:', filePath);
+            try {
+              console.log('About to call loadImageFromPath...');
+              await loadImageFromPath(filePath, true);
+              console.log('loadImageFromPath completed successfully');
+            } catch (error) {
+              console.error('Failed to load image from open-file event:', error);
+            }
+          } else {
+            console.log('Invalid file path received:', filePath);
+          }
+        });
+        
+        // Also check command line arguments on startup (first instance)
+        const args = await getCommandLineArgs();
+        console.log('Command line arguments on startup:', args);
+        
+        for (const arg of args) {
+          if (arg.startsWith('-')) continue;
+          
           try {
             await loadImage(arg);
             console.log('Loading image from command line:', arg);
             await loadImageFromPath(arg, true);
-            return; // Successfully loaded image, exit early
+            break;
           } catch (error) {
-            // Not a valid image file, continue to next argument
             console.log('Argument is not a valid image file:', arg);
           }
         }
+        
       } catch (error) {
-        console.error('Failed to process command line arguments:', error);
+        console.error('Failed to setup file open handling:', error);
       }
     };
 
-    handleCommandLineArgs();
-  }, []); // Only run once on mount
+    setupFileOpenListener();
+
+    return () => {
+      if (unlistenFn) {
+        unlistenFn();
+      }
+    };
+  }, [loadImageFromPath]);
 
 
 

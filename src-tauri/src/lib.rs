@@ -1524,16 +1524,92 @@ fn get_font_data_from_path(fonts_dir: &Path, font_name: &str, font_extensions: &
 #[tauri::command]
 async fn get_command_line_args() -> Result<Vec<String>, String> {
     let args: Vec<String> = std::env::args().collect();
+    
+    // Log all arguments for debugging
+    println!("Total arguments: {}", args.len());
+    for (i, arg) in args.iter().enumerate() {
+        println!("Arg[{}]: {}", i, arg);
+    }
+    
     // Skip the first argument (program name) and return the rest
-    Ok(args.into_iter().skip(1).collect())
+    let result: Vec<String> = args.into_iter().skip(1).collect();
+    println!("Returning {} arguments", result.len());
+    
+    Ok(result)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    
+    // Initialize single instance plugin first (for file associations)
+    #[cfg(desktop)]
+    {
+        use tauri::{Manager, Emitter};
+        
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            println!("=== SINGLE INSTANCE CALLBACK TRIGGERED ===");
+            println!("Args received: {:?}", args);
+            println!("Args count: {}", args.len());
+            
+            // Get the main window and restore it if minimized
+            if let Some(window) = app.get_webview_window("main") {
+                println!("Found main window, restoring and focusing...");
+                
+                // If window is minimized, restore it
+                let _ = window.unminimize();
+                let _ = window.show();
+                
+                // Focus the window
+                let _ = window.set_focus();
+                
+                // If we have file arguments, emit them
+                if args.len() > 1 {
+                    let file_path = &args[1];
+                    println!("Emitting open-file event with path: {}", file_path);
+                    
+                    match app.emit("open-file", file_path) {
+                        Ok(_) => println!("Successfully emitted open-file event"),
+                        Err(e) => println!("Failed to emit open-file event: {}", e),
+                    }
+                } else {
+                    println!("No file arguments found (only program name)");
+                }
+            } else {
+                println!("Main window not found!");
+            }
+        }));
+    }
+    
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .setup(|app| {
+            use tauri::{Manager, Emitter};
+            
+            println!("=== APP SETUP TRIGGERED ===");
+            
+            // Get command line arguments on first startup
+            let args: Vec<String> = std::env::args().collect();
+            println!("Setup - Args received: {:?}", args);
+            
+            // If we have file arguments on startup, emit them
+            if args.len() > 1 {
+                let file_path = &args[1];
+                println!("Setup - Emitting open-file event with path: {}", file_path);
+                
+                // Emit to the app (global event)
+                match app.emit("open-file", file_path) {
+                    Ok(_) => println!("Setup - Successfully emitted open-file event"),
+                    Err(e) => println!("Setup - Failed to emit open-file event: {}", e),
+                }
+            } else {
+                println!("Setup - No file arguments found");
+            }
+            
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             greet, 
             load_image,
