@@ -28,10 +28,7 @@ image = { version = "0.25", features = ["png", "jpeg", "gif", "bmp", "webp", "ti
 base64 = "0.22"
 thiserror = "1.0"
 dirs = "5.0"
-ocrs = "0.8"
-rten = "0.13"
-rten-imageproc = "0.13"
-rten-tensor = "0.13"
+
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
