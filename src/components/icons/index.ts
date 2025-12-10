@@ -18,6 +18,7 @@ import { FavoriteIcon } from './FavoriteIcon';
 import { TagIcon } from './TagIcon';
 import { SearchIcon } from './SearchIcon';
 import { StickerIcon } from './StickerIcon';
+import { TextIcon } from './TextIcon';
 
 export type IconName = 
   | 'resize'
@@ -38,7 +39,8 @@ export type IconName =
   | 'favorite'
   | 'tag'
   | 'search'
-  | 'sticker';
+  | 'sticker'
+  | 'text';
 
 export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = {
   'resize': ResizeIcon,
@@ -60,6 +62,7 @@ export const icons: Record<IconName, React.FC<React.SVGProps<SVGSVGElement>>> = 
   'tag': TagIcon,
   'search': SearchIcon,
   'sticker': StickerIcon,
+  'text': TextIcon,
 };
 
 // Export individual icons for direct use if needed
@@ -83,4 +86,5 @@ export {
   TagIcon,
   SearchIcon,
   StickerIcon,
+  TextIcon,
 };

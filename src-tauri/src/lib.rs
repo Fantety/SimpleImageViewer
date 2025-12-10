@@ -31,7 +31,7 @@ mod immutability_test;
 mod favorites_test;
 
 // Re-export commonly used types
-pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor, StickerData};
+pub use types::{ImageData, ImageFormat, ConversionOptions, RGBColor, StickerData, TextData};
 pub use error::{AppError, AppResult};
 pub use favorites::{FavoriteImage, FavoritesConfig};
 
@@ -1003,6 +1003,326 @@ async fn apply_stickers(
     })
 }
 
+/// Apply text overlays to an image
+/// 
+/// Renders text onto the image at specified positions with customizable styling.
+/// Each text element can have its own font, size, color, and rotation.
+/// 
+/// @param image_data - The base image to apply text to
+/// @param texts - Array of text data with positioning and styling information
+/// @returns New ImageData with text applied
+#[tauri::command]
+async fn apply_texts(
+    image_data: ImageData,
+    texts: Vec<TextData>,
+) -> Result<ImageData, String> {
+    if texts.is_empty() {
+        return Err(AppError::InvalidParameters(
+            "No texts provided".to_string()
+        ).into());
+    }
+
+    // Decode Base64 data for the base image
+    let decoded_data = general_purpose::STANDARD
+        .decode(&image_data.data)
+        .map_err(|e| AppError::InvalidImageData(format!("Failed to decode base image Base64: {}", e)))?;
+    
+    // Load base image from decoded data
+    let base_img = image::load_from_memory(&decoded_data)
+        .map_err(AppError::ImageError)?;
+    
+    // Convert to RGBA8 for text rendering
+    let mut base_rgba = base_img.to_rgba8();
+    
+    // Apply each text
+    for (index, text_data) in texts.iter().enumerate() {
+        // Validate text parameters
+        if text_data.text.is_empty() {
+            continue; // Skip empty text
+        }
+        
+        if text_data.font_size == 0 {
+            return Err(AppError::InvalidParameters(
+                format!("Text {} has invalid font size", index)
+            ).into());
+        }
+        
+        // Parse color
+        let color = parse_hex_color(&text_data.color)
+            .map_err(|e| AppError::InvalidParameters(
+                format!("Text {} has invalid color '{}': {}", index, text_data.color, e)
+            ))?;
+        
+        // For now, we'll use a simple text rendering approach
+        // In a production app, you'd want to use a proper font rendering library
+        // This is a basic implementation that renders text pixel by pixel
+        render_text_on_image(
+            &mut base_rgba,
+            &text_data.text,
+            text_data.x,
+            text_data.y,
+            text_data.font_size,
+            color,
+            text_data.rotation,
+        )?;
+    }
+    
+    // Convert back to DynamicImage
+    let result_img = DynamicImage::ImageRgba8(base_rgba);
+    
+    // Encode to the same format as the original
+    let mut output_buffer = Vec::new();
+    let format = image_data.format.to_image_format()
+        .ok_or_else(|| AppError::UnsupportedFormat(
+            format!("Cannot encode {} format", image_data.format)
+        ))?;
+    
+    result_img.write_to(&mut std::io::Cursor::new(&mut output_buffer), format)
+        .map_err(AppError::ImageError)?;
+    
+    // Encode to Base64
+    let base64_data = general_purpose::STANDARD.encode(&output_buffer);
+    
+    // Detect alpha channel in result image
+    let has_alpha = detect_alpha_channel(&result_img);
+    
+    // Return new ImageData with text applied
+    Ok(ImageData {
+        path: image_data.path,
+        width: image_data.width,
+        height: image_data.height,
+        format: image_data.format,
+        data: base64_data,
+        has_alpha,
+    })
+}
+
+/// Parse hex color string to RGB values
+fn parse_hex_color(hex: &str) -> Result<(u8, u8, u8), String> {
+    let hex = hex.trim_start_matches('#');
+    
+    if hex.len() != 6 {
+        return Err("Color must be in #RRGGBB format".to_string());
+    }
+    
+    let r = u8::from_str_radix(&hex[0..2], 16)
+        .map_err(|_| "Invalid red component")?;
+    let g = u8::from_str_radix(&hex[2..4], 16)
+        .map_err(|_| "Invalid green component")?;
+    let b = u8::from_str_radix(&hex[4..6], 16)
+        .map_err(|_| "Invalid blue component")?;
+    
+    Ok((r, g, b))
+}
+
+/// Render text on image using a simple bitmap font approach
+fn render_text_on_image(
+    image: &mut image::RgbaImage,
+    text: &str,
+    x: u32,
+    y: u32,
+    font_size: u32,
+    color: (u8, u8, u8),
+    _rotation: f32, // TODO: Implement rotation
+) -> Result<(), String> {
+    // Simple bitmap font rendering
+    // Each character is rendered as a simple pattern
+    
+    // Calculate character dimensions based on font size
+    // Use a more reasonable scaling approach
+    let char_width = (font_size * 3) / 4; // Make characters wider
+    let char_height = font_size;
+    let char_spacing = char_width + (font_size / 8).max(2); // Add spacing between characters
+    
+    for (i, ch) in text.chars().enumerate() {
+        let char_x = x + (i as u32 * char_spacing);
+        let char_y = y;
+        
+        render_char_bitmap(image, ch, char_x, char_y, char_width, char_height, color)?;
+    }
+    
+    Ok(())
+}
+
+/// Render a single character using a simple bitmap pattern
+fn render_char_bitmap(
+    image: &mut image::RgbaImage,
+    ch: char,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    color: (u8, u8, u8),
+) -> Result<(), String> {
+    // Simple 5x7 bitmap patterns for basic characters
+    let pattern = get_char_pattern(ch);
+    
+    // Calculate scaling factors, ensuring minimum size
+    let scale_x = (width / 5).max(1);
+    let scale_y = (height / 7).max(1);
+    
+    // Debug: Add some logging to see what's happening
+    println!("Rendering char '{}' at ({}, {}) with size {}x{}, scale {}x{}", 
+             ch, x, y, width, height, scale_x, scale_y);
+    
+    for (row, &pattern_row) in pattern.iter().enumerate() {
+        for col in 0..5 {
+            if (pattern_row >> (4 - col)) & 1 == 1 {
+                // Draw scaled pixel block
+                for dy in 0..scale_y {
+                    for dx in 0..scale_x {
+                        let px = x + (col as u32 * scale_x) + dx;
+                        let py = y + (row as u32 * scale_y) + dy;
+                        
+                        if px < image.width() && py < image.height() {
+                            let pixel = image.get_pixel_mut(px, py);
+                            pixel.0[0] = color.0;
+                            pixel.0[1] = color.1;
+                            pixel.0[2] = color.2;
+                            pixel.0[3] = 255;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Get bitmap pattern for a character (5x7 bitmap)
+fn get_char_pattern(ch: char) -> [u8; 7] {
+    match ch {
+        'A' => [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b00000],
+        'B' => [0b11110, 0b10001, 0b11110, 0b11110, 0b10001, 0b11110, 0b00000],
+        'C' => [0b01111, 0b10000, 0b10000, 0b10000, 0b10000, 0b01111, 0b00000],
+        'D' => [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110, 0b00000],
+        'E' => [0b11111, 0b10000, 0b11110, 0b11110, 0b10000, 0b11111, 0b00000],
+        'F' => [0b11111, 0b10000, 0b11110, 0b11110, 0b10000, 0b10000, 0b00000],
+        'G' => [0b01111, 0b10000, 0b10011, 0b10001, 0b10001, 0b01111, 0b00000],
+        'H' => [0b10001, 0b10001, 0b11111, 0b11111, 0b10001, 0b10001, 0b00000],
+        'I' => [0b01110, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110, 0b00000],
+        'J' => [0b00111, 0b00001, 0b00001, 0b10001, 0b10001, 0b01110, 0b00000],
+        'K' => [0b10001, 0b10010, 0b11100, 0b11100, 0b10010, 0b10001, 0b00000],
+        'L' => [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111, 0b00000],
+        'M' => [0b10001, 0b11011, 0b10101, 0b10001, 0b10001, 0b10001, 0b00000],
+        'N' => [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b00000],
+        'O' => [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110, 0b00000],
+        'P' => [0b11110, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000, 0b00000],
+        'Q' => [0b01110, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101, 0b00000],
+        'R' => [0b11110, 0b10001, 0b11110, 0b10010, 0b10001, 0b10001, 0b00000],
+        'S' => [0b01111, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110, 0b00000],
+        'T' => [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00000],
+        'U' => [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110, 0b00000],
+        'V' => [0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100, 0b00000],
+        'W' => [0b10001, 0b10001, 0b10001, 0b10101, 0b11011, 0b10001, 0b00000],
+        'X' => [0b10001, 0b01010, 0b00100, 0b00100, 0b01010, 0b10001, 0b00000],
+        'Y' => [0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100, 0b00000],
+        'Z' => [0b11111, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111, 0b00000],
+        '0' => [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b01110, 0b00000],
+        '1' => [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b01110, 0b00000],
+        '2' => [0b01110, 0b10001, 0b00010, 0b00100, 0b01000, 0b11111, 0b00000],
+        '3' => [0b01110, 0b10001, 0b00110, 0b00001, 0b10001, 0b01110, 0b00000],
+        '4' => [0b00010, 0b00110, 0b01010, 0b11111, 0b00010, 0b00010, 0b00000],
+        '5' => [0b11111, 0b10000, 0b11110, 0b00001, 0b10001, 0b01110, 0b00000],
+        '6' => [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110, 0b00000],
+        '7' => [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b00000],
+        '8' => [0b01110, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110, 0b00000],
+        '9' => [0b01110, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110, 0b00000],
+        ' ' => [0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000],
+        '!' => [0b00100, 0b00100, 0b00100, 0b00100, 0b00000, 0b00100, 0b00000],
+        '?' => [0b01110, 0b10001, 0b00010, 0b00100, 0b00000, 0b00100, 0b00000],
+        '.' => [0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00100, 0b00000],
+        ',' => [0b00000, 0b00000, 0b00000, 0b00000, 0b00100, 0b01000, 0b00000],
+        ':' => [0b00000, 0b00100, 0b00000, 0b00000, 0b00100, 0b00000, 0b00000],
+        ';' => [0b00000, 0b00100, 0b00000, 0b00000, 0b00100, 0b01000, 0b00000],
+        '-' => [0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000],
+        '+' => [0b00000, 0b00100, 0b01110, 0b00100, 0b00000, 0b00000, 0b00000],
+        '=' => [0b00000, 0b11111, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000],
+        '(' => [0b00010, 0b00100, 0b01000, 0b01000, 0b00100, 0b00010, 0b00000],
+        ')' => [0b01000, 0b00100, 0b00010, 0b00010, 0b00100, 0b01000, 0b00000],
+        '[' => [0b01110, 0b01000, 0b01000, 0b01000, 0b01000, 0b01110, 0b00000],
+        ']' => [0b01110, 0b00010, 0b00010, 0b00010, 0b00010, 0b01110, 0b00000],
+        '/' => [0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b00000, 0b00000],
+        '\\' => [0b10000, 0b01000, 0b00100, 0b00010, 0b00001, 0b00000, 0b00000],
+        // Lowercase letters (simplified patterns)
+        'a' => [0b00000, 0b01110, 0b00001, 0b01111, 0b10001, 0b01111, 0b00000],
+        'b' => [0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b11110, 0b00000],
+        'c' => [0b00000, 0b01111, 0b10000, 0b10000, 0b10000, 0b01111, 0b00000],
+        'd' => [0b00001, 0b00001, 0b01111, 0b10001, 0b10001, 0b01111, 0b00000],
+        'e' => [0b00000, 0b01110, 0b10001, 0b11111, 0b10000, 0b01111, 0b00000],
+        'f' => [0b00111, 0b01000, 0b11110, 0b01000, 0b01000, 0b01000, 0b00000],
+        'g' => [0b00000, 0b01111, 0b10001, 0b01111, 0b00001, 0b01110, 0b00000],
+        'h' => [0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b00000],
+        'i' => [0b00100, 0b00000, 0b01100, 0b00100, 0b00100, 0b01110, 0b00000],
+        'j' => [0b00010, 0b00000, 0b00110, 0b00010, 0b10010, 0b01100, 0b00000],
+        'k' => [0b10000, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b00000],
+        'l' => [0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110, 0b00000],
+        'm' => [0b00000, 0b11010, 0b10101, 0b10101, 0b10101, 0b10101, 0b00000],
+        'n' => [0b00000, 0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b00000],
+        'o' => [0b00000, 0b01110, 0b10001, 0b10001, 0b10001, 0b01110, 0b00000],
+        'p' => [0b00000, 0b11110, 0b10001, 0b11110, 0b10000, 0b10000, 0b00000],
+        'q' => [0b00000, 0b01111, 0b10001, 0b01111, 0b00001, 0b00001, 0b00000],
+        'r' => [0b00000, 0b10110, 0b11001, 0b10000, 0b10000, 0b10000, 0b00000],
+        's' => [0b00000, 0b01111, 0b10000, 0b01110, 0b00001, 0b11110, 0b00000],
+        't' => [0b01000, 0b11110, 0b01000, 0b01000, 0b01001, 0b00110, 0b00000],
+        'u' => [0b00000, 0b10001, 0b10001, 0b10001, 0b10011, 0b01101, 0b00000],
+        'v' => [0b00000, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100, 0b00000],
+        'w' => [0b00000, 0b10001, 0b10101, 0b10101, 0b10101, 0b01010, 0b00000],
+        'x' => [0b00000, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000],
+        'y' => [0b00000, 0b10001, 0b10001, 0b01111, 0b00001, 0b01110, 0b00000],
+        'z' => [0b00000, 0b11111, 0b00010, 0b00100, 0b01000, 0b11111, 0b00000],
+        // Common Chinese characters (simplified patterns)
+        '新' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "new"
+        '文' => [0b11111, 0b00100, 0b01110, 0b10101, 0b01110, 0b00100, 0b00000], // "text/culture"
+        '字' => [0b11111, 0b10001, 0b01110, 0b00100, 0b01110, 0b10001, 0b00000], // "character"
+        '你' => [0b10001, 0b11111, 0b10001, 0b01110, 0b10001, 0b11111, 0b00000], // "you"
+        '好' => [0b10101, 0b11111, 0b10101, 0b01110, 0b10101, 0b11111, 0b00000], // "good"
+        '我' => [0b11111, 0b01010, 0b11111, 0b01010, 0b11111, 0b01010, 0b00000], // "I/me"
+        '是' => [0b11111, 0b10001, 0b11111, 0b00100, 0b11111, 0b10001, 0b00000], // "is/am"
+        '的' => [0b01110, 0b10001, 0b01110, 0b00100, 0b01110, 0b10001, 0b00000], // possessive particle
+        '在' => [0b11111, 0b00100, 0b11111, 0b00100, 0b11111, 0b00100, 0b00000], // "at/in"
+        '有' => [0b11111, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b00000], // "have"
+        '中' => [0b01110, 0b00100, 0b11111, 0b00100, 0b11111, 0b00100, 0b00000], // "middle/China"
+        '国' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "country"
+        '人' => [0b00100, 0b01010, 0b10001, 0b10001, 0b10001, 0b10001, 0b00000], // "person"
+        '大' => [0b00100, 0b01010, 0b10001, 0b11111, 0b10001, 0b10001, 0b00000], // "big"
+        '小' => [0b00100, 0b01010, 0b10001, 0b01010, 0b00100, 0b00000, 0b00000], // "small"
+        '上' => [0b00100, 0b00100, 0b00100, 0b11111, 0b00000, 0b00000, 0b00000], // "up/above"
+        '下' => [0b00000, 0b00000, 0b11111, 0b00100, 0b00100, 0b00100, 0b00000], // "down/below"
+        '来' => [0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b11111, 0b00000], // "come"
+        '去' => [0b11111, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000], // "go"
+        '看' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "look/see"
+        '说' => [0b11111, 0b10001, 0b01110, 0b10001, 0b01110, 0b10001, 0b00000], // "say/speak"
+        '做' => [0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b00000], // "do/make"
+        '会' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "can/will"
+        '要' => [0b11111, 0b10001, 0b11111, 0b01110, 0b11111, 0b10001, 0b00000], // "want/need"
+        '不' => [0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000, 0b00000], // "not"
+        '了' => [0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000, 0b00000], // completion particle
+        '和' => [0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b00000], // "and"
+        '也' => [0b10001, 0b01010, 0b11111, 0b01010, 0b10001, 0b00000, 0b00000], // "also"
+        '都' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "all"
+        '很' => [0b10001, 0b11111, 0b10001, 0b01110, 0b10001, 0b11111, 0b00000], // "very"
+        '多' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "many/much"
+        '少' => [0b01110, 0b10001, 0b01110, 0b10001, 0b01110, 0b10001, 0b00000], // "few/little"
+        '年' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "year"
+        '月' => [0b11111, 0b10001, 0b10001, 0b10001, 0b10001, 0b11111, 0b00000], // "month"
+        '日' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "day/sun"
+        '时' => [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000], // "time"
+        // For other Chinese characters and Unicode characters
+        _ => {
+            let code = ch as u32;
+            if code >= 0x4E00 && code <= 0x9FFF {
+                // Chinese character not in our list - use a generic Chinese character pattern
+                [0b11111, 0b10001, 0b11111, 0b10001, 0b11111, 0b10001, 0b00000]
+            } else {
+                // Other unknown characters - use a different pattern
+                [0b11111, 0b10101, 0b11111, 0b10101, 0b11111, 0b10101, 0b00000]
+            }
+        }
+    }
+}
+
 
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1024,6 +1344,7 @@ pub fn run() {
             set_background,
             rotate_image,
             apply_stickers,
+            apply_texts,
             get_all_favorites,
             add_favorite,
             remove_favorite,

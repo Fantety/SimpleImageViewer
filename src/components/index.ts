@@ -14,4 +14,5 @@ export type { NotificationProps, NotificationData, NotificationType } from './No
 export { FavoritesSidebar } from './FavoritesSidebar';
 export { AddFavoriteDialog } from './AddFavoriteDialog';
 export { StickerDialog } from './StickerDialog';
+export { TextDialog } from './TextDialog';
 export * from './icons';

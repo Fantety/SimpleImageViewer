@@ -120,3 +120,22 @@ pub struct StickerData {
     /// Rotation angle in degrees
     pub rotation: f32,
 }
+
+/// Represents text to be rendered on an image
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextData {
+    /// Text content to render
+    pub text: String,
+    /// X position in the base image
+    pub x: u32,
+    /// Y position in the base image
+    pub y: u32,
+    /// Font size in pixels
+    pub font_size: u32,
+    /// Font family name
+    pub font_family: String,
+    /// Text color in hex format (#RRGGBB)
+    pub color: String,
+    /// Rotation angle in degrees
+    pub rotation: f32,
+}

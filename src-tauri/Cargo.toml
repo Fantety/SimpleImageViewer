@@ -29,6 +29,8 @@ imageproc = "0.25"
 base64 = "0.22"
 thiserror = "1.0"
 dirs = "5.0"
+rusttype = "0.9"
+ab_glyph = "0.2"
 
 
 [dev-dependencies]

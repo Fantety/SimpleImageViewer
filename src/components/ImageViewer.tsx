@@ -4,8 +4,8 @@ import { useAppState } from '../contexts/AppStateContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useImageNavigation } from '../hooks/useImageNavigation';
 import { useImageZoom } from '../hooks/useImageZoom';
-import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites, applyStickers } from '../api/tauri';
-import type { ImageFormat, ConversionOptions, RGBColor, StickerData } from '../types/tauri';
+import { loadImage, openFileDialog, getDirectoryImages, resizeImage, convertFormat, cropImage, setBackground, rotateImage, saveImage, saveFileDialog, isFavorite, removeFavorite, getAllFavorites, applyStickers, applyTexts } from '../api/tauri';
+import type { ImageFormat, ConversionOptions, RGBColor, StickerData, TextData } from '../types/tauri';
 import { Icon } from './Icon';
 import { Toolbar } from './Toolbar';
 import { ResizeDialog } from './ResizeDialog';
@@ -13,6 +13,7 @@ import { FormatConverterDialog } from './FormatConverterDialog';
 import { CropDialog } from './CropDialog';
 import { BackgroundSetterDialog } from './BackgroundSetterDialog';
 import { StickerDialog } from './StickerDialog';
+import { TextDialog } from './TextDialog';
 import { FavoritesSidebar } from './FavoritesSidebar';
 import { AddFavoriteDialog } from './AddFavoriteDialog';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -77,6 +78,7 @@ export const ImageViewer: React.FC = () => {
   const [showCropDialog, setShowCropDialog] = useState<boolean>(false);
   const [showBackgroundSetterDialog, setShowBackgroundSetterDialog] = useState<boolean>(false);
   const [showStickerDialog, setShowStickerDialog] = useState<boolean>(false);
+  const [showTextDialog, setShowTextDialog] = useState<boolean>(false);
   const [showFavoritesSidebar, setShowFavoritesSidebar] = useState<boolean>(false);
   const [showAddFavoriteDialog, setShowAddFavoriteDialog] = useState<boolean>(false);
   const [isCurrentImageFavorite, setIsCurrentImageFavorite] = useState<boolean>(false);
@@ -736,6 +738,113 @@ export const ImageViewer: React.FC = () => {
   }, []);
 
   /**
+   * Opens the text dialog
+   */
+  const handleText = useCallback(() => {
+    if (state.currentImage) {
+      setShowTextDialog(true);
+    }
+  }, [state.currentImage]);
+
+  /**
+   * Handle text confirmation
+   * Applies text to the image
+   */
+  const handleTextConfirm = useCallback(async (texts: TextData[], saveAsCopy: boolean) => {
+    if (!state.currentImage) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+      setLoadingProgress(0);
+      setOperationName('应用文字');
+
+      setLoadingProgress(30);
+
+      // Convert TextData to the format expected by the API
+      const textParams = texts.map(text => ({
+        text: text.text,
+        x: Math.round(text.x),
+        y: Math.round(text.y),
+        font_size: text.fontSize,
+        font_family: text.fontFamily,
+        color: text.color,
+        rotation: text.rotation,
+      }));
+
+      // Apply texts to the image
+      const imageWithTexts = await applyTexts(state.currentImage, textParams);
+
+      setLoadingProgress(60);
+
+      if (saveAsCopy) {
+        // Save as copy - open save dialog
+        const currentPath = state.currentImage.path;
+        const fileName = currentPath.split('/').pop() || 'image';
+        const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+        const ext = fileName.substring(fileName.lastIndexOf('.'));
+        const defaultName = `${fileNameWithoutExt}_with_text${ext}`;
+        
+        const savePath = await saveFileDialog(defaultName);
+        
+        if (!savePath) {
+          // User cancelled
+          setLoading(false);
+          setLoadingProgress(0);
+          setOperationName('');
+          return;
+        }
+
+        setLoadingProgress(80);
+
+        // Save to the new path
+        await saveImage(imageWithTexts, savePath);
+        
+        showSuccess('保存成功', `文字已应用并保存到 ${savePath.split('/').pop()}`);
+      } else {
+        setLoadingProgress(80);
+
+        // Save to the original path (overwrite)
+        await saveImage(imageWithTexts, state.currentImage.path);
+        
+        // Update state with the modified image
+        setCurrentImage(imageWithTexts);
+        addToHistory(imageWithTexts);
+        showSuccess('保存成功', '文字已应用并保存');
+      }
+
+      setLoadingProgress(100);
+
+      // Close the dialog
+      setShowTextDialog(false);
+    } catch (err) {
+      console.error('Text application error details:', err);
+      const errorMessage = err instanceof Error ? err.message : '应用文字失败';
+      const error = err instanceof Error ? err : new Error(errorMessage);
+      logError('Failed to apply texts', error, 'ImageViewer', { 
+        operation: 'applyTexts', 
+        saveAsCopy, 
+        textCount: texts.length
+      });
+      setError(errorMessage);
+      showError('操作失败', `${errorMessage} - 请检查控制台获取详细信息`);
+    } finally {
+      setLoading(false);
+      setLoadingProgress(0);
+      setOperationName('');
+    }
+  }, [state.currentImage, setLoading, clearError, setCurrentImage, addToHistory, setError, showSuccess, showError]);
+
+  /**
+   * Handle text cancellation
+   */
+  const handleTextCancel = useCallback(() => {
+    setShowTextDialog(false);
+  }, []);
+
+  /**
    * Handle rotate left (counter-clockwise 90°)
    * Rotates the image and automatically saves it
    */
@@ -1106,6 +1215,7 @@ export const ImageViewer: React.FC = () => {
           onCrop={handleCrop}
           onSetBackground={handleSetBackground}
           onSticker={handleSticker}
+          onText={handleText}
           onRotateLeft={handleRotateLeft}
           onRotateRight={handleRotateRight}
           onToggleFavorite={handleToggleFavorite}
@@ -1341,6 +1451,23 @@ export const ImageViewer: React.FC = () => {
             imageData={state.currentImage}
             onConfirm={handleStickerConfirm}
             onCancel={handleStickerCancel}
+          />
+        </ErrorBoundary>
+      )}
+
+      {/* Text Dialog */}
+      {showTextDialog && state.currentImage && (
+        <ErrorBoundary
+          isolationName="TextDialog"
+          onError={(error) => {
+            logError("Text dialog error", error, "TextDialog");
+            setShowTextDialog(false);
+          }}
+        >
+          <TextDialog
+            imageData={state.currentImage}
+            onConfirm={handleTextConfirm}
+            onCancel={handleTextCancel}
           />
         </ErrorBoundary>
       )}

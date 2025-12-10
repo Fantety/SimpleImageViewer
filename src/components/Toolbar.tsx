@@ -26,6 +26,7 @@ export interface ToolbarProps {
   onCrop: () => void;
   onSetBackground: () => void;
   onSticker: () => void;
+  onText: () => void;
   onRotateLeft: () => void;
   onRotateRight: () => void;
   onToggleFavorite: () => void;
@@ -41,6 +42,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onCrop,
   onSetBackground,
   onSticker,
+  onText,
   onRotateLeft,
   onRotateRight,
   onToggleFavorite,
@@ -113,6 +115,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         >
           <Icon name="sticker" size={20} />
           <span className="toolbar-button-label">添加贴纸</span>
+        </button>
+
+        <button
+          className="toolbar-button"
+          onClick={onText}
+          disabled={disabled}
+          title="添加文字 - 在图片上添加文字"
+          aria-label="添加文字"
+        >
+          <Icon name="text" size={20} />
+          <span className="toolbar-button-label">添加文字</span>
         </button>
 
         <div className="toolbar-divider" />

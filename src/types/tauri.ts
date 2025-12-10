@@ -54,3 +54,26 @@ export interface StickerApiData {
   height: number; // Height in image coordinates
   rotation: number; // Rotation in degrees
 }
+
+export interface TextData {
+  id: string;
+  text: string; // Text content
+  x: number; // Position X in image coordinates
+  y: number; // Position Y in image coordinates
+  fontSize: number; // Font size in pixels
+  fontFamily: string; // Font family name
+  color: string; // Text color (hex format: #RRGGBB)
+  rotation: number; // Rotation in degrees
+  zIndex: number; // Layer order
+}
+
+// API-compatible text data (matches Rust backend)
+export interface TextApiData {
+  text: string; // Text content
+  x: number; // Position X in image coordinates
+  y: number; // Position Y in image coordinates
+  font_size: number; // Font size in pixels
+  font_family: string; // Font family name
+  color: string; // Text color (hex format: #RRGGBB)
+  rotation: number; // Rotation in degrees
+}

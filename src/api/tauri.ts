@@ -375,4 +375,44 @@ export async function applyStickers(
   return result;
 }
 
+/**
+ * Apply text overlays to an image
+ * 
+ * Renders text onto the image at specified positions with customizable styling.
+ * Each text element can have its own font, size, color, and rotation.
+ * 
+ * @param imageData - The base image to apply text to
+ * @param texts - Array of text data with positioning and styling information
+ * @returns Promise resolving to new ImageData with text applied
+ * @throws Error if text rendering fails or invalid parameters
+ */
+export async function applyTexts(
+  imageData: ImageData,
+  texts: Array<{
+    text: string;
+    x: number;
+    y: number;
+    font_size: number;
+    font_family: string;
+    color: string; // Hex format: #RRGGBB
+    rotation: number;
+  }>
+): Promise<ImageData> {
+  // Create a snapshot of the original for immutability verification
+  const originalSnapshot = deepCopyImageData(imageData);
+  
+  // Perform the text application operation
+  const result = await invoke<ImageData>('apply_texts', {
+    imageData,
+    texts,
+  });
+  
+  // Verify that the original was not mutated
+  if (!areImageDataEqual(originalSnapshot, imageData)) {
+    throw new Error('Immutability violation: original ImageData was mutated during text application');
+  }
+  
+  return result;
+}
+
 
