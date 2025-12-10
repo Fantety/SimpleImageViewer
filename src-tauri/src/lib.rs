@@ -1053,10 +1053,8 @@ async fn apply_texts(
                 format!("Text {} has invalid color '{}': {}", index, text_data.color, e)
             ))?;
         
-        // For now, we'll use a simple text rendering approach
-        // In a production app, you'd want to use a proper font rendering library
-        // This is a basic implementation that renders text pixel by pixel
-        render_text_on_image(
+        // Try to render text using proper font rendering
+        if let Err(e) = render_text_on_image(
             &mut base_rgba,
             &text_data.text,
             text_data.x,
@@ -1064,7 +1062,18 @@ async fn apply_texts(
             text_data.font_size,
             color,
             text_data.rotation,
-        )?;
+        ) {
+            println!("Font rendering failed: {}, falling back to bitmap rendering", e);
+            // Fall back to bitmap rendering
+            render_text_bitmap_fallback(
+                &mut base_rgba,
+                &text_data.text,
+                text_data.x,
+                text_data.y,
+                text_data.font_size,
+                color,
+            )?;
+        }
     }
     
     // Convert back to DynamicImage
@@ -1115,7 +1124,7 @@ fn parse_hex_color(hex: &str) -> Result<(u8, u8, u8), String> {
     Ok((r, g, b))
 }
 
-/// Render text on image using a simple bitmap font approach
+/// Render text on image using proper font rendering
 fn render_text_on_image(
     image: &mut image::RgbaImage,
     text: &str,
@@ -1125,14 +1134,123 @@ fn render_text_on_image(
     color: (u8, u8, u8),
     _rotation: f32, // TODO: Implement rotation
 ) -> Result<(), String> {
-    // Simple bitmap font rendering
-    // Each character is rendered as a simple pattern
+    use ab_glyph::PxScale;
+    use imageproc::drawing::draw_text_mut;
     
-    // Calculate character dimensions based on font size
-    // Use a more reasonable scaling approach
-    let char_width = (font_size * 3) / 4; // Make characters wider
+    // Try to use a system font that supports Chinese characters
+    let font = get_system_font()?;
+    
+    let scale = PxScale::from(font_size as f32);
+    let text_color = image::Rgba([color.0, color.1, color.2, 255]);
+    
+    // Draw text using imageproc
+    draw_text_mut(
+        image,
+        text_color,
+        x as i32,
+        y as i32,
+        scale,
+        &font,
+        text,
+    );
+    
+    Ok(())
+}
+
+/// Get a system font that supports Chinese characters
+fn get_system_font() -> Result<ab_glyph::FontArc, String> {
+    use ab_glyph::FontArc;
+    use font_kit::source::SystemSource;
+    use font_kit::family_name::FamilyName;
+    use font_kit::properties::Properties;
+    
+    let source = SystemSource::new();
+    
+    // Try to find fonts that support Chinese characters
+    let preferred_families = vec![
+        // Chinese fonts
+        FamilyName::Title("PingFang SC".to_string()),      // macOS Chinese
+        FamilyName::Title("Microsoft YaHei".to_string()),  // Windows Chinese
+        FamilyName::Title("SimHei".to_string()),           // Windows Chinese
+        FamilyName::Title("Noto Sans CJK SC".to_string()), // Linux Chinese
+        FamilyName::Title("Source Han Sans SC".to_string()), // Cross-platform Chinese
+        FamilyName::Title("WenQuanYi Micro Hei".to_string()), // Linux Chinese
+        // Fallback fonts
+        FamilyName::Title("Arial Unicode MS".to_string()), // Unicode support
+        FamilyName::SansSerif,                             // System sans-serif
+        FamilyName::Title("Arial".to_string()),            // Common fallback
+        FamilyName::Title("Helvetica".to_string()),        // macOS fallback
+        FamilyName::Title("DejaVu Sans".to_string()),      // Linux fallback
+    ];
+    
+    for family in preferred_families {
+        if let Ok(handle) = source.select_best_match(&[family], &Properties::new()) {
+            if let Ok(font) = handle.load() {
+                // Try to get font data as bytes
+                if let Some(font_data) = font.copy_font_data() {
+                    if let Ok(font_arc) = FontArc::try_from_vec((*font_data).clone()) {
+                        println!("Successfully loaded system font");
+                        return Ok(font_arc);
+                    }
+                }
+            }
+        }
+    }
+    
+    println!("No suitable system font found, trying fallback methods");
+    get_embedded_font()
+}
+
+/// Get an embedded fallback font
+fn get_embedded_font() -> Result<ab_glyph::FontArc, String> {
+    use ab_glyph::FontArc;
+    use font_kit::source::SystemSource;
+    use font_kit::family_name::FamilyName;
+    use font_kit::properties::Properties;
+    
+    // As a last resort, try to get any available system font
+    let source = SystemSource::new();
+    
+    // Try to get any available font as absolute fallback
+    let fallback_families = vec![
+        FamilyName::Serif,
+        FamilyName::SansSerif,
+        FamilyName::Monospace,
+    ];
+    
+    for family in fallback_families {
+        if let Ok(handle) = source.select_best_match(&[family], &Properties::new()) {
+            if let Ok(font) = handle.load() {
+                // Try to get font data as bytes
+                if let Some(font_data) = font.copy_font_data() {
+                    if let Ok(font_arc) = FontArc::try_from_vec((*font_data).clone()) {
+                        println!("Using fallback system font");
+                        return Ok(font_arc);
+                    }
+                }
+            }
+        }
+    }
+    
+    println!("Warning: No system fonts available, falling back to bitmap rendering");
+    Err("No system fonts available".to_string())
+}
+
+
+
+/// Fallback bitmap text rendering
+fn render_text_bitmap_fallback(
+    image: &mut image::RgbaImage,
+    text: &str,
+    x: u32,
+    y: u32,
+    font_size: u32,
+    color: (u8, u8, u8),
+) -> Result<(), String> {
+    // Simple bitmap font rendering as fallback
+    let char_width = (font_size * 3) / 4;
     let char_height = font_size;
-    let char_spacing = char_width + (font_size / 8).max(2); // Add spacing between characters
+    let char_spacing = char_width + (font_size / 8).max(2);
     
     for (i, ch) in text.chars().enumerate() {
         let char_x = x + (i as u32 * char_spacing);
