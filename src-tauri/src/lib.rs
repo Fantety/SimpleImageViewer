@@ -36,7 +36,8 @@ pub use error::{AppError, AppResult};
 pub use favorites::{FavoriteImage, FavoritesConfig};
 
 use base64::{Engine as _, engine::general_purpose};
-use image::{DynamicImage, GenericImageView, ImageReader};
+use image::{DynamicImage, GenericImageView, ImageReader, Rgba};
+// Note: imageproc is available for future use if needed
 use std::fs;
 use std::path::Path;
 
@@ -896,57 +897,78 @@ async fn apply_stickers(
             image::imageops::FilterType::Lanczos3
         );
         
-        // Apply rotation if needed
-        let rotated_sticker = if sticker.rotation != 0.0 {
-            // For simplicity, we'll support 90-degree increments
-            let normalized_rotation = ((sticker.rotation % 360.0) + 360.0) % 360.0;
-            match normalized_rotation as i32 {
-                0 => resized_sticker,
-                90 => resized_sticker.rotate90(),
-                180 => resized_sticker.rotate180(),
-                270 => resized_sticker.rotate270(),
-                _ => {
-                    // For non-90-degree rotations, we'll just use the original for now
-                    // Full rotation support would require more complex image processing
-                    resized_sticker
+        // Convert sticker to RGBA8 for processing
+        let sticker_rgba = resized_sticker.to_rgba8();
+        
+        // Calculate rotation parameters
+        let rotation_radians = sticker.rotation * std::f32::consts::PI / 180.0;
+        let cos_angle = rotation_radians.cos();
+        let sin_angle = rotation_radians.sin();
+        
+        // Calculate the center of the sticker in the base image
+        let center_x = sticker.x as f32 + (sticker.width as f32 / 2.0);
+        let center_y = sticker.y as f32 + (sticker.height as f32 / 2.0);
+        
+        // Calculate the bounds of the rotated sticker
+        let half_width = sticker.width as f32 / 2.0;
+        let half_height = sticker.height as f32 / 2.0;
+        
+        // For each pixel in the base image, check if it should receive a rotated sticker pixel
+        for base_y in 0..base_rgba.height() {
+            for base_x in 0..base_rgba.width() {
+                // Translate to sticker center coordinates
+                let dx = base_x as f32 - center_x;
+                let dy = base_y as f32 - center_y;
+                
+                // Apply inverse rotation to find source pixel in original sticker
+                let src_x = dx * cos_angle + dy * sin_angle + half_width;
+                let src_y = -dx * sin_angle + dy * cos_angle + half_height;
+                
+                // Check if the source coordinates are within the sticker bounds
+                if src_x >= 0.0 && src_x < sticker.width as f32 && 
+                   src_y >= 0.0 && src_y < sticker.height as f32 {
+                    
+                    // Use bilinear interpolation for smooth rotation
+                    let x0 = src_x.floor() as u32;
+                    let y0 = src_y.floor() as u32;
+                    let x1 = (x0 + 1).min(sticker.width - 1);
+                    let y1 = (y0 + 1).min(sticker.height - 1);
+                    
+                    let fx = src_x - x0 as f32;
+                    let fy = src_y - y0 as f32;
+                    
+                    // Get the four surrounding pixels
+                    let p00 = sticker_rgba.get_pixel(x0, y0);
+                    let p10 = sticker_rgba.get_pixel(x1, y0);
+                    let p01 = sticker_rgba.get_pixel(x0, y1);
+                    let p11 = sticker_rgba.get_pixel(x1, y1);
+                    
+                    // Bilinear interpolation
+                    let interpolated_pixel = Rgba([
+                        ((p00.0[0] as f32 * (1.0 - fx) + p10.0[0] as f32 * fx) * (1.0 - fy) +
+                         (p01.0[0] as f32 * (1.0 - fx) + p11.0[0] as f32 * fx) * fy) as u8,
+                        ((p00.0[1] as f32 * (1.0 - fx) + p10.0[1] as f32 * fx) * (1.0 - fy) +
+                         (p01.0[1] as f32 * (1.0 - fx) + p11.0[1] as f32 * fx) * fy) as u8,
+                        ((p00.0[2] as f32 * (1.0 - fx) + p10.0[2] as f32 * fx) * (1.0 - fy) +
+                         (p01.0[2] as f32 * (1.0 - fx) + p11.0[2] as f32 * fx) * fy) as u8,
+                        ((p00.0[3] as f32 * (1.0 - fx) + p10.0[3] as f32 * fx) * (1.0 - fy) +
+                         (p01.0[3] as f32 * (1.0 - fx) + p11.0[3] as f32 * fx) * fy) as u8,
+                    ]);
+                    
+                    // Apply alpha blending
+                    let base_pixel = base_rgba.get_pixel_mut(base_x, base_y);
+                    let sticker_alpha = interpolated_pixel.0[3] as f32 / 255.0;
+                    let inv_alpha = 1.0 - sticker_alpha;
+                    
+                    // Blend RGB channels
+                    base_pixel.0[0] = ((base_pixel.0[0] as f32 * inv_alpha) + (interpolated_pixel.0[0] as f32 * sticker_alpha)) as u8;
+                    base_pixel.0[1] = ((base_pixel.0[1] as f32 * inv_alpha) + (interpolated_pixel.0[1] as f32 * sticker_alpha)) as u8;
+                    base_pixel.0[2] = ((base_pixel.0[2] as f32 * inv_alpha) + (interpolated_pixel.0[2] as f32 * sticker_alpha)) as u8;
+                    
+                    // Combine alpha channels
+                    let combined_alpha = (base_pixel.0[3] as f32 / 255.0) * inv_alpha + sticker_alpha;
+                    base_pixel.0[3] = (combined_alpha * 255.0) as u8;
                 }
-            }
-        } else {
-            resized_sticker
-        };
-        
-        // Convert sticker to RGBA8
-        let sticker_rgba = rotated_sticker.to_rgba8();
-        
-        // Composite sticker onto base image using alpha blending
-        let sticker_width = sticker_rgba.width();
-        let sticker_height = sticker_rgba.height();
-        
-        for sy in 0..sticker_height {
-            for sx in 0..sticker_width {
-                let base_x = sticker.x + sx;
-                let base_y = sticker.y + sy;
-                
-                // Check bounds
-                if base_x >= base_rgba.width() || base_y >= base_rgba.height() {
-                    continue;
-                }
-                
-                let sticker_pixel = sticker_rgba.get_pixel(sx, sy);
-                let base_pixel = base_rgba.get_pixel_mut(base_x, base_y);
-                
-                // Alpha blending
-                let sticker_alpha = sticker_pixel.0[3] as f32 / 255.0;
-                let inv_alpha = 1.0 - sticker_alpha;
-                
-                // Blend RGB channels
-                base_pixel.0[0] = ((base_pixel.0[0] as f32 * inv_alpha) + (sticker_pixel.0[0] as f32 * sticker_alpha)) as u8;
-                base_pixel.0[1] = ((base_pixel.0[1] as f32 * inv_alpha) + (sticker_pixel.0[1] as f32 * sticker_alpha)) as u8;
-                base_pixel.0[2] = ((base_pixel.0[2] as f32 * inv_alpha) + (sticker_pixel.0[2] as f32 * sticker_alpha)) as u8;
-                
-                // Combine alpha channels
-                let combined_alpha = (base_pixel.0[3] as f32 / 255.0) * inv_alpha + sticker_alpha;
-                base_pixel.0[3] = (combined_alpha * 255.0) as u8;
             }
         }
     }
