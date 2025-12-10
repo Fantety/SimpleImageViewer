@@ -1443,6 +1443,14 @@ fn get_char_pattern(ch: char) -> [u8; 7] {
 
 
 
+/// Get command line arguments
+#[tauri::command]
+async fn get_command_line_args() -> Result<Vec<String>, String> {
+    let args: Vec<String> = std::env::args().collect();
+    // Skip the first argument (program name) and return the rest
+    Ok(args.into_iter().skip(1).collect())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1469,7 +1477,8 @@ pub fn run() {
             is_favorite,
             search_favorites_by_tags,
             get_all_tags,
-            file_exists
+            file_exists,
+            get_command_line_args
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "simpleimageviewer",
+  "productName": "Simple Image Viewer",
   "version": "0.1.0",
   "identifier": "com.fantety.simpleimageviewer",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "simpleimageviewer",
+        "title": "Simple Image Viewer",
         "width": 900,
         "height": 600,
         "minWidth": 900,
@@ -34,6 +34,76 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": []
+    "resources": [],
+    "macOS": {
+      "signingIdentity": null,
+      "entitlements": "entitlements.plist",
+      "minimumSystemVersion": "10.13"
+    },
+    "category": "Graphics and Design",
+    "shortDescription": "A simple and powerful image viewer and editor",
+    "longDescription": "Simple Image Viewer is a modern image viewing and editing application that supports multiple formats including PNG, JPEG, GIF, BMP, WEBP, SVG, TIFF, ICO, HEIC, and AVIF. Features include image editing tools, stickers, text overlay, format conversion, and more.",
+    "fileAssociations": [
+      {
+        "ext": ["png"],
+        "name": "PNG Image",
+        "description": "Portable Network Graphics",
+        "role": "Editor"
+      },
+      {
+        "ext": ["jpg", "jpeg"],
+        "name": "JPEG Image",
+        "description": "Joint Photographic Experts Group",
+        "role": "Editor"
+      },
+      {
+        "ext": ["gif"],
+        "name": "GIF Image",
+        "description": "Graphics Interchange Format",
+        "role": "Editor"
+      },
+      {
+        "ext": ["bmp"],
+        "name": "BMP Image",
+        "description": "Bitmap Image File",
+        "role": "Editor"
+      },
+      {
+        "ext": ["webp"],
+        "name": "WebP Image",
+        "description": "WebP Image Format",
+        "role": "Editor"
+      },
+      {
+        "ext": ["svg"],
+        "name": "SVG Image",
+        "description": "Scalable Vector Graphics",
+        "role": "Editor"
+      },
+      {
+        "ext": ["tiff", "tif"],
+        "name": "TIFF Image",
+        "description": "Tagged Image File Format",
+        "role": "Editor"
+      },
+      {
+        "ext": ["ico"],
+        "name": "ICO Image",
+        "description": "Icon Image File",
+        "role": "Editor"
+      },
+      {
+        "ext": ["heic", "heif"],
+        "name": "HEIC Image",
+        "description": "High Efficiency Image Container",
+        "role": "Editor"
+      },
+      {
+        "ext": ["avif"],
+        "name": "AVIF Image",
+        "description": "AV1 Image File Format",
+        "role": "Editor"
+      }
+    ]
   }
 }
