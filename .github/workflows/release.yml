@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*" # 触发条件：推送以 v 开头的标签，例如 v1.0.0
+
+jobs:
+  release:
+    runs-on: macos-latest # 只在 macOS 上运行
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Tauri app
+        run: yarn tauri build
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          # 获取上一个标签
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          # 如果没有上一个标签，获取所有提交
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)")
+          else
+            # 获取两个标签之间的提交
+            COMMITS=$(git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)")
+          fi
+
+          # 将提交日志保存到文件中
+          echo "$COMMITS" > release_notes.txt
+
+          # 将提交日志设置为输出变量
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src-tauri/target/release/bundle/macos/Simple Image Viewer.app.tar.gz
+            src-tauri/target/release/bundle/macos/Simple Image Viewer.app.tar.gz.sig
+            src-tauri/target/release/bundle/macos/Simple Image Viewer.dmg
+            src-tauri/target/release/bundle/macos/Simple Image Viewer.dmg.sig
+            src-tauri/target/release/bundle/macos/Simple Image Viewer.pkg
+            src-tauri/target/release/bundle/macos/Simple Image Viewer.pkg.sig
+          body: ${{ steps.release_notes.outputs.notes }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
