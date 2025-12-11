@@ -3,12 +3,14 @@
 <div align="center">
 
 <img src="app-icon.png" alt="Simple Image Viewer" width="200" height="200">
-### Simple Image Viewer
+<h3>Simple Image Viewer<h3>
 **轻量级图片查看器 + 基础编辑工具**
 
 一个专为 macOS 设计的现代化图片查看和编辑应用，既轻量又强大。
 
 多格式浏览 • 收藏标签管理 • 尺寸调整 • 可视化裁剪 • 透明图片背景设置 • 文字编辑 • 编辑贴纸
+
+<img src="screen_shot/screen_shot.png" alt="Simple Image Viewer 截图" width="800">
 
 </div>
 
