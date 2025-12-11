@@ -3,11 +3,14 @@ name: Release
 on:
   push:
     tags:
-      - "v*" # 触发条件：推送以 v 开头的标签，例如 v1.0.0
+      - "v*" # 触发条件：推送以 v 开头的标签，例如 v0.0.1-beta
 
 jobs:
   release:
     runs-on: macos-latest # 只在 macOS 上运行
+
+    permissions:
+      contents: write # 允许创建 release
 
     steps:
       - name: Checkout repository
@@ -30,6 +33,11 @@ jobs:
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: List Build Artifacts
+        run: |
+          echo "All build artifacts:"
+          find src-tauri/target -name "*.dmg" -o -name "*.pkg" -o -name "*.tar.gz" -o -name "*.sig" | sort
 
       - name: Generate Release Notes
         id: release_notes
@@ -57,14 +65,11 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src-tauri/target/release/bundle/macos/Simple Image Viewer.app.tar.gz
-            src-tauri/target/release/bundle/macos/Simple Image Viewer.app.tar.gz.sig
-            src-tauri/target/release/bundle/macos/Simple Image Viewer.dmg
-            src-tauri/target/release/bundle/macos/Simple Image Viewer.dmg.sig
-            src-tauri/target/release/bundle/macos/Simple Image Viewer.pkg
-            src-tauri/target/release/bundle/macos/Simple Image Viewer.pkg.sig
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/release/bundle/pkg/*.pkg
           body: ${{ steps.release_notes.outputs.notes }}
           draft: false
-          prerelease: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
