@@ -31,7 +31,9 @@ jobs:
           cache: "yarn"
 
       - name: Install dependencies
-        run: yarn install
+        run: |
+          yarn install
+          npm install -g create-dmg
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -45,6 +47,18 @@ jobs:
 
           # 构建 Tauri 应用
           yarn tauri build --target ${{ matrix.arch }}-apple-darwin
+
+          # 使用 ad-hoc 签名对应用进行签名（避免"损坏"提示）
+          APP_PATH="src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/macos/Simple Image Viewer.app"
+          if [ -d "$APP_PATH" ]; then
+            codesign --force --deep --sign - "$APP_PATH"
+            echo "Ad-hoc signature applied to $APP_PATH"
+
+            # 重新打包 DMG
+            cd "src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle"
+            rm -f dmg/*.dmg
+            yarn create-dmg "Simple Image Viewer.app" dmg/
+          fi
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
