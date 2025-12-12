@@ -43,20 +43,37 @@ jobs:
           # 设置目标架构
           export TAURI_TARGET_TRIPLE=${{ matrix.arch }}-apple-darwin
 
-          # 构建 Tauri 应用，不生成 bundle
-          yarn tauri build --target ${{ matrix.arch }}-apple-darwin -- --no-bundle
+          # 使用 Tauri 默认构建方式
+          yarn tauri build --target ${{ matrix.arch }}-apple-darwin
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
+      - name: Debug build artifacts
+        run: |
+          echo "Listing all target directories:"
+          find src-tauri/target -type d -name "*apple-darwin*" | sort
+          echo ""
+          echo "All .app files found:"
+          find src-tauri/target -name "*.app" -type d | sort
+          echo ""
+          echo "All DMG files found:"
+          find src-tauri/target -name "*.dmg" | sort
+
       - name: Create DMG
         run: |
-          # 找到生成的 .app 文件
-          APP_PATH=$(find src-tauri/target/${{ matrix.arch }}-apple-darwin/release -name "*.app" -type d | head -n 1)
+          # 查找所有可能的 .app 文件
+          echo "Searching for .app files..."
+          APP_PATH=$(find src-tauri/target -name "*.app" -type d | grep "${{ matrix.arch }}" | head -n 1)
 
           if [ -z "$APP_PATH" ]; then
-            echo "No .app found in release directory"
-            find src-tauri/target/${{ matrix.arch }}-apple-darwin -name "*.app" -type d
+            # 如果没找到特定架构的，查找任意的 .app
+            APP_PATH=$(find src-tauri/target -name "*.app" -type d | head -n 1)
+          fi
+
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app found anywhere"
+            find src-tauri/target -name "*.app" -type d
             exit 1
           fi
 
@@ -67,18 +84,25 @@ jobs:
           echo "Ad-hoc signature applied"
 
           # 创建 bundle 目录
-          mkdir -p "src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg"
+          BUNDLE_DIR="src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg"
+          mkdir -p "$BUNDLE_DIR"
 
           # 设置输出文件名
           ARCH_NAME=${{ matrix.arch == 'aarch64' && 'arm64' || matrix.arch }}
-          DMG_PATH="src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg/SimpleImageViewer-${ARCH_NAME}-${TAG:1}.dmg"
+          DMG_PATH="$BUNDLE_DIR/SimpleImageViewer-${ARCH_NAME}-${TAG:1}.dmg"
 
-          # 使用 hdiutil 创建简单的 DMG
+          # 创建一个临时目录用于打包
+          TEMP_DIR=$(mktemp -d)
+          cp -R "$APP_PATH" "$TEMP_DIR/"
+
+          # 使用 hdiutil 创建 DMG
           hdiutil create -volname "Simple Image Viewer" \
-            -srcfolder "$APP_PATH" \
+            -srcfolder "$TEMP_DIR" \
             -ov -format UDZO \
-            -fs HFS+ \
             "$DMG_PATH"
+
+          # 清理临时目录
+          rm -rf "$TEMP_DIR"
 
           echo "DMG created at: $DMG_PATH"
 
