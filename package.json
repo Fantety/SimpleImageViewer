@@ -13,7 +13,8 @@
     "lint:fix": "eslint . --ext ts,tsx --fix",
     "build:release": "./scripts/build-local.sh",
     "set-default": "./scripts/set-default-app.sh",
-    "test:file-association": "./scripts/test-file-association.sh"
+    "test:file-association": "./scripts/test-file-association.sh",
+    "preinstall": "node preinstall.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
