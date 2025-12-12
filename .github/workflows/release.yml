@@ -31,9 +31,7 @@ jobs:
           cache: "yarn"
 
       - name: Install dependencies
-        run: |
-          yarn install
-          npm install -g create-dmg
+        run: yarn install
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -45,53 +43,50 @@ jobs:
           # 设置目标架构
           export TAURI_TARGET_TRIPLE=${{ matrix.arch }}-apple-darwin
 
-          # 构建 Tauri 应用
-          yarn tauri build --target ${{ matrix.arch }}-apple-darwin
-
-          # 使用 ad-hoc 签名对应用进行签名（避免"损坏"提示）
-          APP_PATH="src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/macos/Simple Image Viewer.app"
-          if [ -d "$APP_PATH" ]; then
-            codesign --force --deep --sign - "$APP_PATH"
-            echo "Ad-hoc signature applied to $APP_PATH"
-
-            # 重新打包 DMG
-            cd "src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle"
-            rm -f dmg/*.dmg
-            yarn create-dmg "Simple Image Viewer.app" dmg/
-          fi
+          # 构建 Tauri 应用，不生成 bundle
+          yarn tauri build --target ${{ matrix.arch }}-apple-darwin -- --no-bundle
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
-      - name: Rename DMG with architecture and tag
+      - name: Create DMG
         run: |
-          # 查找生成的 DMG 文件
-          DMG_FILE=$(find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg -name "*.dmg" | head -n 1)
+          # 找到生成的 .app 文件
+          APP_PATH=$(find src-tauri/target/${{ matrix.arch }}-apple-darwin/release -name "*.app" -type d | head -n 1)
 
-          if [ -n "$DMG_FILE" ]; then
-            # 获取文件名（不带路径）
-            ORIGINAL_NAME=$(basename "$DMG_FILE")
-
-            # 创建新名称：SimpleImageViewer+arch+tag.dmg
-            # 对于 aarch64 使用 arm64 作为输出名称以保持用户友好
-            ARCH_NAME=${{ matrix.arch == 'aarch64' && 'arm64' || matrix.arch }}
-            NEW_NAME="SimpleImageViewer-${ARCH_NAME}-${TAG:1}.dmg"
-
-            # 重命名文件
-            mv "$DMG_FILE" "src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg/$NEW_NAME"
-
-            echo "Renamed $ORIGINAL_NAME to $NEW_NAME"
-            echo "DMG_PATH=src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg/$NEW_NAME" >> $GITHUB_ENV
-          else
-            echo "No DMG file found"
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found in release directory"
+            find src-tauri/target/${{ matrix.arch }}-apple-darwin -name "*.app" -type d
             exit 1
           fi
+
+          echo "Found app at: $APP_PATH"
+
+          # 使用 ad-hoc 签名
+          codesign --force --deep --sign - "$APP_PATH"
+          echo "Ad-hoc signature applied"
+
+          # 创建 bundle 目录
+          mkdir -p "src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg"
+
+          # 设置输出文件名
+          ARCH_NAME=${{ matrix.arch == 'aarch64' && 'arm64' || matrix.arch }}
+          DMG_PATH="src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg/SimpleImageViewer-${ARCH_NAME}-${TAG:1}.dmg"
+
+          # 使用 hdiutil 创建简单的 DMG
+          hdiutil create -volname "Simple Image Viewer" \
+            -srcfolder "$APP_PATH" \
+            -ov -format UDZO \
+            -fs HFS+ \
+            "$DMG_PATH"
+
+          echo "DMG created at: $DMG_PATH"
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: dmg-${{ matrix.arch }}
-          path: ${{ env.DMG_PATH }}
+          path: src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg/SimpleImageViewer-*.dmg
 
   release:
     needs: build
