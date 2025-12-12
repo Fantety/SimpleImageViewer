@@ -13,7 +13,9 @@ jobs:
     runs-on: macos-latest # 只在 macOS 上运行
     strategy:
       matrix:
-        arch: [arm64, x86_64]
+        include:
+          - arch: aarch64
+          - arch: x86_64
 
     permissions:
       contents: write # 允许创建 release
@@ -57,7 +59,9 @@ jobs:
             ORIGINAL_NAME=$(basename "$DMG_FILE")
 
             # 创建新名称：SimpleImageViewer+arch+tag.dmg
-            NEW_NAME="SimpleImageViewer-${{ matrix.arch }}-${TAG:1}.dmg"
+            # 对于 aarch64 使用 arm64 作为输出名称以保持用户友好
+            ARCH_NAME=${{ matrix.arch == 'aarch64' && 'arm64' || matrix.arch }}
+            NEW_NAME="SimpleImageViewer-${ARCH_NAME}-${TAG:1}.dmg"
 
             # 重命名文件
             mv "$DMG_FILE" "src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg/$NEW_NAME"
