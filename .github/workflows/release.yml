@@ -5,9 +5,15 @@ on:
     tags:
       - "v*" # 触发条件：推送以 v 开头的标签，例如 v0.0.1-beta
 
+env:
+  TAG: ${{ github.ref_name }}
+
 jobs:
-  release:
+  build:
     runs-on: macos-latest # 只在 macOS 上运行
+    strategy:
+      matrix:
+        arch: [arm64, x86_64]
 
     permissions:
       contents: write # 允许创建 release
@@ -27,17 +33,64 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.arch }}-apple-darwin
 
       - name: Build Tauri app
-        run: yarn tauri build
+        run: |
+          # 设置目标架构
+          export TAURI_TARGET_TRIPLE=${{ matrix.arch }}-apple-darwin
+
+          # 构建 Tauri 应用
+          yarn tauri build --target ${{ matrix.arch }}-apple-darwin
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
-      - name: List Build Artifacts
+      - name: Rename DMG with architecture and tag
         run: |
-          echo "All build artifacts:"
-          find src-tauri/target -name "*.dmg" -o -name "*.pkg" -o -name "*.tar.gz" -o -name "*.sig" | sort
+          # 查找生成的 DMG 文件
+          DMG_FILE=$(find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg -name "*.dmg" | head -n 1)
+
+          if [ -n "$DMG_FILE" ]; then
+            # 获取文件名（不带路径）
+            ORIGINAL_NAME=$(basename "$DMG_FILE")
+
+            # 创建新名称：SimpleImageViewer+arch+tag.dmg
+            NEW_NAME="SimpleImageViewer-${{ matrix.arch }}-${TAG:1}.dmg"
+
+            # 重命名文件
+            mv "$DMG_FILE" "src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg/$NEW_NAME"
+
+            echo "Renamed $ORIGINAL_NAME to $NEW_NAME"
+            echo "DMG_PATH=src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg/$NEW_NAME" >> $GITHUB_ENV
+          else
+            echo "No DMG file found"
+            exit 1
+          fi
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmg-${{ matrix.arch }}
+          path: ${{ env.DMG_PATH }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # 允许创建 release
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dmg-*
+          merge-multiple: true
 
       - name: Generate Release Notes
         id: release_notes
@@ -61,13 +114,16 @@ jobs:
           echo "$COMMITS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: List Artifacts
+        run: |
+          echo "All artifacts to be uploaded:"
+          ls -la *.dmg
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src-tauri/target/release/bundle/dmg/*.dmg
-            src-tauri/target/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/release/bundle/pkg/*.pkg
+            SimpleImageViewer-*.dmg
           body: ${{ steps.release_notes.outputs.notes }}
           draft: false
           prerelease: true
